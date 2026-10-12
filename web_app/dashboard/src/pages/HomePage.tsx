@@ -1,14 +1,17 @@
 import ArrowBackRounded from '@mui/icons-material/ArrowBackRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
-import ConstructionRounded from '@mui/icons-material/ConstructionRounded';
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
 import { Box, Chip, Container, Paper, Stack, Typography } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
 
-const nextModules = [
-  { number: '01', title: 'الخدمات والخبيرات', text: 'إدارة الكتالوج ومراجعة ملفات الاعتماد والوثائق الخاصة.' },
-  { number: '02', title: 'الحجوزات', text: 'متابعة الحالات والمهل واللقطات وسجل الانتقالات.' },
-  { number: '03', title: 'التشغيل المالي', text: 'مراجعة الدفع التجريبي والمستحقات والتحويلات اليدوية.' },
+const liveModules = [
+  { number: '01', title: 'الملخص والتشغيل', text: 'مؤشرات الخادم وحالة الـWorker والتسليمات الفاشلة.', to: '/overview' },
+  { number: '02', title: 'الخدمات والخبيرات', text: 'إدارة الكتالوج ومراجعة ملفات الاعتماد والوثائق الخاصة.', to: '/services' },
+  { number: '03', title: 'الحجوزات', text: 'متابعة الحالات والمهل واللقطات وسجل الانتقالات.', to: '/bookings' },
+  { number: '04', title: 'المدفوعات والمستحقات', text: 'مراجعة الدفع التجريبي والاسترجاع والتحويلات اليدوية.', to: '/payments' },
+  { number: '05', title: 'الحسابات والتدقيق', text: 'إدارة الحسابات والتقييمات وسجل التدقيق الكامل.', to: '/users' },
+  { number: '06', title: 'الإعدادات', text: 'لقطة السياسة للقراءة فقط وإدارة تفعيل المدن.', to: '/settings' },
 ];
 
 function cairoDate() {
@@ -32,7 +35,7 @@ export function HomePage() {
             صباح العمليات، {auth.user?.name.split(' ')[0]}
           </Typography>
           <Typography sx={{ color: 'rgba(255,250,246,.72)', mt: 2, maxWidth: 570, lineHeight: 1.9 }}>
-            اكتمل أساس اللوحة الآمن. الوحدات التشغيلية ستُفعّل تباعًا بعد مطابقة عقودها مع الخادم.
+            اكتمل نطاق اللوحة: الكتالوج والحجوزات والمدفوعات والمستحقات والتشغيل والإعدادات — كلها مربوطة بعقود الخادم.
           </Typography>
         </Box>
       </Paper>
@@ -41,8 +44,8 @@ export function HomePage() {
         <Paper className="foundation-card" elevation={0}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <Box>
-              <Typography className="eyebrow" color="primary.main">المرحلة الحالية</Typography>
-              <Typography variant="h3" sx={{ mt: 1, fontSize: '1.65rem' }}>الأساس والجلسة</Typography>
+              <Typography className="eyebrow" color="primary.main">الحالة</Typography>
+              <Typography variant="h3" sx={{ mt: 1, fontSize: '1.65rem' }}>النطاق مكتمل</Typography>
             </Box>
             <CheckCircleRounded color="success" sx={{ fontSize: 34 }} />
           </Stack>
@@ -59,20 +62,20 @@ export function HomePage() {
         <Paper className="roadmap-card" elevation={0}>
           <Stack direction="row" sx={{ mb: 3, justifyContent: 'space-between', alignItems: 'center' }}>
             <Box>
-              <Typography className="eyebrow" color="secondary.dark">قيد البناء</Typography>
-              <Typography variant="h3" sx={{ mt: 1, fontSize: '1.65rem' }}>المسار التشغيلي التالي</Typography>
+              <Typography className="eyebrow" color="secondary.dark">الوحدات الحية</Typography>
+              <Typography variant="h3" sx={{ mt: 1, fontSize: '1.65rem' }}>المسارات التشغيلية</Typography>
             </Box>
-            <ConstructionRounded color="secondary" />
+            <CheckCircleRounded color="success" />
           </Stack>
           <Stack divider={<Box className="roadmap-divider" />}>
-            {nextModules.map((module) => (
-              <Box key={module.number} className="roadmap-item">
+            {liveModules.map((module) => (
+              <Box key={module.number} className="roadmap-item" component={RouterLink} to={module.to} sx={{ textDecoration: 'none', color: 'inherit' }}>
                 <Typography className="roadmap-number">{module.number}</Typography>
                 <Box sx={{ flexGrow: 1 }}>
                   <Typography sx={{ fontWeight: 800 }}>{module.title}</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: .5 }}>{module.text}</Typography>
                 </Box>
-                <ArrowBackRounded color="disabled" />
+                <ArrowBackRounded color="action" />
               </Box>
             ))}
           </Stack>

@@ -1,4 +1,5 @@
 import AssignmentOutlined from '@mui/icons-material/AssignmentOutlined';
+import AccountBalanceOutlined from '@mui/icons-material/AccountBalanceOutlined';
 import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
 import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import GroupOutlined from '@mui/icons-material/GroupOutlined';
@@ -12,7 +13,7 @@ import ShowChartOutlined from '@mui/icons-material/ShowChartOutlined';
 import SpaOutlined from '@mui/icons-material/SpaOutlined';
 import StarRateOutlined from '@mui/icons-material/StarRateOutlined';
 import {
-  AppBar, Avatar, Box, Button, Chip, Divider, Drawer, IconButton, List, ListItemButton,
+  AppBar, Avatar, Box, Button, Divider, Drawer, IconButton, List, ListItemButton,
   ListItemIcon, ListItemText, Stack, Toolbar, Tooltip, Typography,
 } from '@mui/material';
 import { useState } from 'react';
@@ -29,10 +30,9 @@ const active = [
   { label: 'التقييمات', to: '/reviews', icon: <StarRateOutlined /> },
   { label: 'سجل التدقيق', to: '/audit', icon: <AssignmentOutlined /> },
   { label: 'المدفوعات', to: '/payments', icon: <PaymentsOutlined /> },
+  { label: 'المستحقات', to: '/payouts', icon: <AccountBalanceOutlined /> },
   { label: 'التشغيل', to: '/operations', icon: <MonitorHeartOutlined /> },
-];
-const planned = [
-  { label: 'الإعدادات', icon: <SettingsOutlined /> },
+  { label: 'الإعدادات', to: '/settings', icon: <SettingsOutlined /> },
 ];
 
 function Navigation({ close }: { close: () => void }) {
@@ -58,17 +58,6 @@ function Navigation({ close }: { close: () => void }) {
             <ListItemIcon>{item.icon}</ListItemIcon>
             <ListItemText primary={item.label} />
           </ListItemButton>
-        ))}
-        {planned.map((item) => (
-          <Tooltip key={item.label} title="تُفعّل في المرحلة التشغيلية التالية" placement="left">
-            <span>
-              <ListItemButton disabled className="sidebar-link">
-                <ListItemIcon>{item.icon}</ListItemIcon>
-                <ListItemText primary={item.label} />
-                <Chip label="قريبًا" size="small" className="soon-chip" />
-              </ListItemButton>
-            </span>
-          </Tooltip>
         ))}
       </List>
       <Box sx={{ mt: 'auto', p: 2.5 }}>

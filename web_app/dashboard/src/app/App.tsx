@@ -25,6 +25,7 @@ const PayoutDetailPage = lazy(() => import('../pages/PayoutDetailPage').then((mo
 const PayoutCreatePage = lazy(() => import('../pages/PayoutCreatePage').then((module) => ({ default: module.PayoutCreatePage })));
 const OverviewPage = lazy(() => import('../pages/OverviewPage').then((module) => ({ default: module.OverviewPage })));
 const OperationsPage = lazy(() => import('../pages/OperationsPage').then((module) => ({ default: module.OperationsPage })));
+const SettingsPage = lazy(() => import('../pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 
 function RouteFallback() {
   return (
@@ -61,6 +62,7 @@ export function App() {
                   <Route path="payouts/:id" element={<PayoutDetailPage />} />
                   <Route path="overview" element={<OverviewPage />} />
                   <Route path="operations" element={<OperationsPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
                 </Route>
               </Route>
               <Route path="*" element={<NotFoundPage />} />
