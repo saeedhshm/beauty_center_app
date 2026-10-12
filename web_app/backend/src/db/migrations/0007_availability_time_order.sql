@@ -1,0 +1,2 @@
+ALTER TABLE "expert_availability" ADD CONSTRAINT "expert_availability_time_order" CHECK ("expert_availability"."end_time" > "expert_availability"."start_time");--> statement-breakpoint
+ALTER TABLE "expert_availability_exceptions" ADD CONSTRAINT "expert_availability_exceptions_time_order" CHECK ("expert_availability_exceptions"."end_time" is null or "expert_availability_exceptions"."end_time" > "expert_availability_exceptions"."start_time");

@@ -1,0 +1,815 @@
+openapi: 3.1.0
+info:
+  title: Lamsa Backend API
+  version: 0.7.0
+  description: >-
+    Cairo launch in EGP and Africa/Cairo, mobile and admin authentication,
+    catalog, expert approval, customer addresses, editable booking policy,
+    expert availability with slots, the booking state machine with history,
+    demo payments and refunds, expert payouts, mutual reviews and the
+    caller's notification feed with durable push delivery.
+    Registration requires an OTP challenge. The MVP defaults to explicit demo delivery
+    using code 123456 without SMS or proof of phone ownership. AUTH_OTP_MODE=disabled
+    returns OTP_DELIVERY_UNAVAILABLE until a real provider adapter is implemented.
+    Tokens are opaque Bearer tokens, not JWTs.
+    Readiness checks database connectivity, not business schema completeness.
+    All responses use Cache-Control no-store and a server-generated X-Request-ID.
+servers:
+  - url: http://127.0.0.1:3000
+paths:
+  /health/live:
+    get:
+      operationId: getLiveness
+      summary: Process liveness, independent of PostgreSQL
+      responses:
+        '200':
+          description: HTTP process is running
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                data: { status: ok }
+                requestId: 75727951-3f28-4a21-ad39-56c17f72d603
+  /health/ready:
+    get:
+      operationId: getReadiness
+      summary: Execute SELECT 1 through Drizzle and PostgreSQL
+      responses:
+        '200':
+          description: Database connection is available
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                data: { status: ready }
+                requestId: 75727951-3f28-4a21-ad39-56c17f72d603
+        '503':
+          description: Database connection unavailable; no connection details are exposed
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: SERVICE_UNAVAILABLE
+                  message: الخدمة غير متاحة مؤقتًا
+                requestId: 75727951-3f28-4a21-ad39-56c17f72d603
+  /api/v1/auth/register/otp:
+    post:
+      operationId: requestRegistrationOtp
+      summary: Send an OTP or request a new one after the cooldown
+      description: Does not reveal whether the phone is already registered. No OTP is returned in HTTP.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/Phone'
+      responses:
+        '202':
+          description: Sender accepted the request; deliveryMode=demo is simulated and sends no SMS
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [challengeId, expiresAt, retryAfterSeconds, deliveryMode]
+                    properties:
+                      challengeId: { type: string, format: uuid }
+                      expiresAt: { type: string, format: date-time }
+                      retryAfterSeconds: { type: integer, const: 60 }
+                      deliveryMode: { type: string, enum: [demo, sms] }
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          description: OTP delivery unavailable, including AUTH_OTP_MODE=disabled without a provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/register:
+    post:
+      operationId: registerMobileAccount
+      summary: Verify OTP and create the user and session atomically
+      description: Expert registration also creates a pending profile with booking intake disabled. Admin registration is rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone, challengeId, otp, name, password, role]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/Phone'
+                challengeId: { type: string, format: uuid }
+                otp: { type: string, pattern: '^\d{6}$' }
+                name: { type: string, minLength: 2, maxLength: 100 }
+                password: { type: string, format: password, minLength: 12, maxLength: 128 }
+                role: { type: string, enum: [customer, expert] }
+      responses:
+        '201':
+          $ref: '#/components/responses/Session'
+        '400':
+          description: INVALID_OTP (wrong phone/code, expired, exhausted, undelivered or consumed challenge)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: PHONE_ALREADY_REGISTERED, disclosed only after a valid OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/login:
+    post:
+      operationId: loginMobileAccount
+      summary: Login using a verified phone and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone, password]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/LoginPhone'
+                password: { type: string, format: password, minLength: 1, maxLength: 128 }
+      responses:
+        '200':
+          $ref: '#/components/responses/Session'
+        '401':
+          description: INVALID_CREDENTIALS for wrong credentials, inactive, unverified, or unsupported admin accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/refresh:
+    post:
+      operationId: refreshMobileSession
+      summary: Rotate refresh and access tokens
+      description: >-
+        Serialize refresh calls on the client. Reusing an old refresh token revokes its
+        entire session, including tokens issued by a concurrent successful refresh.
+        The absolute refreshExpiresAt is not extended. Old access tokens stop working.
+      requestBody:
+        $ref: '#/components/requestBodies/RefreshToken'
+      responses:
+        '200':
+          $ref: '#/components/responses/Session'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/logout:
+    post:
+      operationId: logoutMobileSession
+      summary: Revoke the refresh token's session and its access token
+      description: Idempotent; accepts even a consumed refresh token for revocation. Does not require an unexpired access token.
+      requestBody:
+        $ref: '#/components/requestBodies/RefreshToken'
+      responses:
+        '204':
+          description: Session revoked or token unknown; no body
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/password/otp:
+    post:
+      operationId: requestPasswordRecoveryOtp
+      summary: Send an OTP for password recovery
+      description: Same challenge machinery as registration with separate rate buckets. Does not reveal whether the phone has an account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/Phone'
+      responses:
+        '202':
+          description: Challenge accepted; deliveryMode=demo is simulated and sends no SMS
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [challengeId, expiresAt, retryAfterSeconds, deliveryMode]
+                    properties:
+                      challengeId: { type: string, format: uuid }
+                      expiresAt: { type: string, format: date-time }
+                      retryAfterSeconds: { type: integer, const: 60 }
+                      deliveryMode: { type: string, enum: [demo, sms] }
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          description: OTP delivery unavailable, including AUTH_OTP_MODE=disabled without a provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/password/reset:
+    post:
+      operationId: resetPasswordByOtp
+      summary: Verify OTP and rotate the password, revoking every session
+      description: No session is issued; the client logs in again explicitly.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone, challengeId, otp, newPassword]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/Phone'
+                challengeId: { type: string, format: uuid }
+                otp: { type: string, pattern: '^\d{6}$' }
+                newPassword: { type: string, format: password, minLength: 12, maxLength: 128 }
+      responses:
+        '204':
+          description: Password rotated and all sessions revoked; no body
+        '400':
+          description: INVALID_OTP (wrong phone/code, expired, exhausted, undelivered or consumed challenge)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: ACCOUNT_NOT_FOUND when no account holds the verified phone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/password/change:
+    post:
+      operationId: changeOwnPassword
+      summary: Change the password with the current one; ends every session
+      security:
+        - MobileBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword: { type: string, format: password, minLength: 1, maxLength: 128 }
+                newPassword: { type: string, format: password, minLength: 12, maxLength: 128 }
+      responses:
+        '204':
+          description: Password rotated and all sessions revoked including the current one; log in again
+        '401':
+          description: INVALID_CREDENTIALS for a wrong current password, or expired session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/auth/phone/otp:
+    post:
+      operationId: requestPhoneChangeOtp
+      summary: Send an OTP to a new phone number before adopting it
+      description: Separate rate buckets from registration. Does not reveal whether the phone is taken.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/Phone'
+      responses:
+        '202':
+          description: Challenge accepted; deliveryMode=demo is simulated and sends no SMS
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [challengeId, expiresAt, retryAfterSeconds, deliveryMode]
+                    properties:
+                      challengeId: { type: string, format: uuid }
+                      expiresAt: { type: string, format: date-time }
+                      retryAfterSeconds: { type: integer, const: 60 }
+                      deliveryMode: { type: string, enum: [demo, sms] }
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          description: OTP delivery unavailable, including AUTH_OTP_MODE=disabled without a provider
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/auth/phone/change:
+    post:
+      operationId: changeOwnPhone
+      summary: Adopt a verified new phone number; sessions stay valid
+      security:
+        - MobileBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [phone, challengeId, otp]
+              properties:
+                phone:
+                  $ref: '#/components/schemas/Phone'
+                challengeId: { type: string, format: uuid }
+                otp: { type: string, pattern: '^\d{6}$' }
+      responses:
+        '200':
+          description: Updated account with the verified number
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    $ref: '#/components/schemas/MobileUser'
+        '400':
+          description: INVALID_OTP (wrong phone/code, expired, exhausted, undelivered or consumed challenge)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          description: PHONE_ALREADY_REGISTERED when another account holds the number
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/users/me:
+    get:
+      operationId: getOwnAccount
+      summary: Return only the authenticated account's allowlisted fields
+      security:
+        - MobileBearer: []
+      responses:
+        '200':
+          description: Current account, never selected by a caller-supplied userId
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    $ref: '#/components/schemas/MobileUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+    patch:
+      operationId: patchOwnAccount
+      summary: Edit the account name or launch city
+      security:
+        - MobileBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                cityId: { type: integer, minimum: 1, maximum: 32767 }
+      responses:
+        '200':
+          description: Updated account fields including cityId
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/MobileUser'
+                      - type: object
+                        properties:
+                          cityId: { type: [integer, 'null'] }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '409':
+          description: CITY_UNAVAILABLE when the city is outside the active launch scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/users/me/deactivate:
+    post:
+      operationId: deactivateOwnAccount
+      summary: Deactivate the current account and revoke every session
+      description: Financial and booking history is preserved; the account simply stops authenticating.
+      security:
+        - MobileBearer: []
+      responses:
+        '204':
+          description: Account deactivated; no body
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /api/v1/experts/me:
+    patch:
+      operationId: updateOwnExpertProfile
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me/patch/requestBody'
+      responses:
+        '200':
+          $ref: './catalog.openapi.yaml#/components/responses/ExpertProfile'
+        default:
+          $ref: './catalog.openapi.yaml#/components/responses/Error'
+    get:
+      operationId: getOwnExpertProfile
+      summary: Read own expert approval status and profile without private document keys
+      security:
+        - MobileBearer: []
+      responses:
+        '200':
+          description: Current expert profile, including pending or suspended approval state
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [userId, name, cityId, bio, approvalStatus, isAcceptingBookings]
+                    properties:
+                      userId: { type: string, format: uuid }
+                      name: { type: string }
+                      cityId: { type: [integer, 'null'] }
+                      bio: { type: [string, 'null'] }
+                      approvalStatus: { type: string, enum: [pending, approved, suspended] }
+                      isAcceptingBookings: { type: boolean }
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          description: FORBIDDEN for customer accounts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Expert profile is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/configuration:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1configuration'
+  /api/v1/cities:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1cities'
+  /api/v1/services:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1services'
+  /api/v1/experts:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts'
+  /api/v1/experts/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1{id}'
+  /api/v1/experts/me/services:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1services'
+  /api/v1/experts/me/services/{serviceId}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1services~1{serviceId}'
+  /api/v1/addresses:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1addresses'
+  /api/v1/addresses/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1addresses~1{id}'
+  /api/v1/admin/auth/login:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1auth~1login'
+  /api/v1/admin/auth/refresh:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1auth~1refresh'
+  /api/v1/admin/auth/logout:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1auth~1logout'
+  /api/v1/admin/me:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1me'
+  /api/v1/admin/settings:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1settings'
+  /api/v1/admin/cities:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1cities'
+  /api/v1/admin/cities/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1cities~1{id}'
+  /api/v1/admin/services:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1services'
+  /api/v1/admin/services/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1services~1{id}'
+  /api/v1/admin/experts:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1experts'
+  /api/v1/admin/experts/{id}/approve:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1experts~1{id}~1approve'
+  /api/v1/admin/experts/{id}/suspend:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1experts~1{id}~1suspend'
+  /api/v1/admin/experts/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1experts~1{id}'
+  /api/v1/admin/users:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1users'
+  /api/v1/admin/users/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1users~1{id}'
+  /api/v1/admin/users/{id}/deactivate:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1users~1{id}~1deactivate'
+  /api/v1/admin/users/{id}/reactivate:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1users~1{id}~1reactivate'
+  /api/v1/admin/audit-logs:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1audit-logs'
+  /api/v1/experts/me/portfolio:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1portfolio'
+  /api/v1/experts/me/portfolio/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1portfolio~1{id}'
+  /api/v1/experts/{id}/portfolio:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1{id}~1portfolio'
+  /api/v1/portfolio/{id}/file:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1portfolio~1{id}~1file'
+  /api/v1/experts/me/identity-document:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1identity-document'
+  /api/v1/experts/me/identity-document/file:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1identity-document~1file'
+  /api/v1/admin/experts/{id}/identity-document/file:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1experts~1{id}~1identity-document~1file'
+  /api/v1/experts/me/availability:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1availability'
+  /api/v1/experts/me/availability-exceptions:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1availability-exceptions'
+  /api/v1/experts/me/availability-exceptions/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1me~1availability-exceptions~1{id}'
+  /api/v1/experts/{id}/slots:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1experts~1{id}~1slots'
+  /api/v1/bookings:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1bookings'
+  /api/v1/bookings/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}'
+  /api/v1/bookings/{id}/accept:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}~1accept'
+  /api/v1/bookings/{id}/reject:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}~1reject'
+  /api/v1/bookings/{id}/cancel:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}~1cancel'
+  /api/v1/bookings/{id}/complete:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}~1complete'
+  /api/v1/admin/bookings:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1bookings'
+  /api/v1/admin/bookings/{id}:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1bookings~1{id}'
+  /api/v1/admin/bookings/{id}/cancel:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1bookings~1{id}~1cancel'
+  /api/v1/bookings/{id}/payments:
+    $ref: './payments.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}~1payments'
+  /api/v1/webhooks/payments/demo:
+    $ref: './payments.openapi.yaml#/paths/~1api~1v1~1webhooks~1payments~1demo'
+  /api/v1/admin/payments:
+    $ref: './payments.openapi.yaml#/paths/~1api~1v1~1admin~1payments'
+  /api/v1/admin/payments/{id}:
+    $ref: './payments.openapi.yaml#/paths/~1api~1v1~1admin~1payments~1{id}'
+  /api/v1/admin/payments/{id}/refund:
+    $ref: './payments.openapi.yaml#/paths/~1api~1v1~1admin~1payments~1{id}~1refund'
+  /api/v1/admin/payouts:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1admin~1payouts'
+  /api/v1/admin/payouts/eligible:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1admin~1payouts~1eligible'
+  /api/v1/admin/payouts/{id}:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1admin~1payouts~1{id}'
+  /api/v1/admin/payouts/{id}/transfer:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1admin~1payouts~1{id}~1transfer'
+  /api/v1/experts/me/payouts:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1experts~1me~1payouts'
+  /api/v1/experts/me/payouts/{id}:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1experts~1me~1payouts~1{id}'
+  /api/v1/experts/me/earnings:
+    $ref: './payouts.openapi.yaml#/paths/~1api~1v1~1experts~1me~1earnings'
+  /api/v1/bookings/{id}/reviews:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1bookings~1{id}~1reviews'
+  /api/v1/experts/{id}/reviews:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1experts~1{id}~1reviews'
+  /api/v1/admin/reviews:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1admin~1reviews'
+  /api/v1/devices:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1devices'
+  /api/v1/devices/{id}:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1devices~1{id}'
+  /api/v1/notifications:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1notifications'
+  /api/v1/notifications/unread-count:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1notifications~1unread-count'
+  /api/v1/notifications/{id}/read:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1notifications~1{id}~1read'
+  /api/v1/notifications/read-all:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1notifications~1read-all'
+  /api/v1/admin/notifications/outbox:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1admin~1notifications~1outbox'
+  /api/v1/admin/notifications/outbox/{id}/retry:
+    $ref: './engagement.openapi.yaml#/paths/~1api~1v1~1admin~1notifications~1outbox~1{id}~1retry'
+  /api/v1/admin/overview:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1overview'
+  /api/v1/admin/payments/late:
+    $ref: './payments.openapi.yaml#/paths/~1api~1v1~1admin~1payments~1late'
+components:
+  securitySchemes:
+    AdminBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Isolated admin-audience Bearer session; no cookies
+    MobileBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Access token returned in session JSON; no cookie authentication
+  requestBodies:
+    RefreshToken:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [refreshToken]
+            properties:
+              refreshToken: { type: string, pattern: '^lr_[A-Za-z0-9_-]{43}$' }
+  responses:
+    Session:
+      description: Authenticated session (sensitive response, never log or cache)
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SessionResponse'
+    Unauthenticated:
+      description: UNAUTHENTICATED for missing, expired, revoked or reused credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: VALIDATION_ERROR with field errors; unrecognized input fields are rejected
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: RATE_LIMITED; durable limits by phone and IP, shared across API processes
+      headers:
+        Retry-After:
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  headers:
+    RequestId:
+      description: Server-generated ID; caller-supplied IDs are not trusted
+      schema: { type: string, format: uuid }
+  schemas:
+    Phone:
+      type: string
+      maxLength: 20
+      pattern: '^(?:01[0125]\d{8}|\+201[0125]\d{8})$'
+      description: Egyptian mobile number, trimmed and normalized to +201xxxxxxxxx
+    LoginPhone:
+      type: string
+      maxLength: 20
+      pattern: '^(?:01[0125]\d{8}|\+201[0125]\d{8}|05\d{8}|\+9665\d{8})$'
+      description: Egyptian numbers plus legacy Saudi account login only
+    MobileUser:
+      type: object
+      required: [id, name, phone, role, phoneVerified]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string, pattern: '^\+(?:201[0125]\d{8}|9665\d{8})$' }
+        role: { type: string, enum: [customer, expert] }
+        phoneVerified:
+          type: boolean
+          const: true
+          description: Registration challenge passed; in demo mode this is simulated, not proof of phone ownership
+    SessionResponse:
+      type: object
+      required: [data, requestId]
+      properties:
+        requestId: { type: string, format: uuid }
+        data:
+          type: object
+          required: [user, tokenType, accessToken, refreshToken, accessExpiresAt, refreshExpiresAt]
+          properties:
+            user:
+              $ref: '#/components/schemas/MobileUser'
+            tokenType: { type: string, const: Bearer }
+            accessToken: { type: string, pattern: '^la_[A-Za-z0-9_-]{43}$' }
+            refreshToken: { type: string, pattern: '^lr_[A-Za-z0-9_-]{43}$' }
+            accessExpiresAt: { type: string, format: date-time }
+            refreshExpiresAt: { type: string, format: date-time }
+    HealthResponse:
+      type: object
+      required: [data, requestId]
+      properties:
+        data:
+          type: object
+          required: [status]
+          properties:
+            status: { type: string, enum: [ok, ready] }
+        requestId: { type: string, format: uuid }
+    ErrorResponse:
+      type: object
+      required: [error, requestId]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [NOT_FOUND, INVALID_JSON, PAYLOAD_TOO_LARGE, UNSUPPORTED_ENCODING, SERVICE_UNAVAILABLE, INTERNAL_ERROR, VALIDATION_ERROR, RATE_LIMITED, OTP_DELIVERY_UNAVAILABLE, INVALID_OTP, PHONE_ALREADY_REGISTERED, INVALID_CREDENTIALS, UNAUTHENTICATED, FORBIDDEN, CONFIGURATION_UNAVAILABLE, CITY_UNAVAILABLE, EXPERT_NOT_APPROVED, EXPERT_UNAVAILABLE, SERVICE_UNAVAILABLE, SLOT_UNAVAILABLE, SLOT_TAKEN, BOOKING_EXPIRED, INVALID_TRANSITION, PAYMENT_ALREADY_SETTLED, AMOUNT_MISMATCH, INVALID_PROVIDER_TOKEN, BOOKING_ALREADY_PAID_OUT, BOOKING_IN_PAYOUT, ACCOUNT_NOT_FOUND, IDEMPOTENCY_IN_PROGRESS, FILE_REQUIRED, FILE_TOO_LARGE, INVALID_UPLOAD, UNSUPPORTED_FILE_TYPE, MEDIA_LIMIT_REACHED]
+            message: { type: string }
+            fields:
+              type: object
+              additionalProperties:
+                type: array
+                items: { type: string }
+        requestId: { type: string, format: uuid }

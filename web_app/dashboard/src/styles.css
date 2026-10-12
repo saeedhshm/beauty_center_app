@@ -1,0 +1,124 @@
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; margin: 0; }
+body { min-width: 320px; }
+
+.eyebrow {
+  font-size: .72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: .12em !important;
+  text-transform: uppercase;
+}
+
+.login-page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(420px, 1.05fr) minmax(460px, .95fr);
+  background: #f6f1eb;
+}
+
+.login-story {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+  padding: clamp(48px, 7vw, 112px);
+  color: #fffaf6;
+  background:
+    radial-gradient(circle at 18% 17%, rgba(213,138,82,.34), transparent 25%),
+    radial-gradient(circle at 87% 80%, rgba(184,101,146,.24), transparent 30%),
+    linear-gradient(145deg, #24182e 0%, #402139 56%, #612947 100%);
+}
+
+.login-story::after {
+  content: '';
+  position: absolute;
+  width: 340px;
+  height: 340px;
+  border: 1px solid rgba(255,250,246,.12);
+  border-radius: 50%;
+  left: -120px;
+  bottom: -130px;
+  box-shadow: 0 0 0 48px rgba(255,250,246,.025), 0 0 0 96px rgba(255,250,246,.02);
+}
+
+.brand-mark, .sidebar-logo {
+  display: grid;
+  place-items: center;
+  border-radius: 36% 64% 62% 38% / 46% 42% 58% 54%;
+  color: #24182e;
+  background: #efbd91;
+  font-weight: 900;
+}
+
+.brand-mark { width: 68px; height: 68px; font-size: 2rem; }
+.sidebar-logo { width: 43px; height: 43px; font-size: 1.35rem; }
+
+.market-stamp { margin-top: 28px; flex-wrap: wrap; }
+.market-stamp span {
+  padding: 7px 12px;
+  border: 1px solid rgba(255,250,246,.15);
+  border-radius: 999px;
+  color: rgba(255,250,246,.7);
+  font-size: .76rem;
+}
+
+.login-panel { display: grid; place-items: center; padding: clamp(24px, 6vw, 88px); }
+.login-card { width: min(100%, 480px); padding: clamp(28px, 4vw, 52px); border: 1px solid rgba(83,32,63,.1); box-shadow: 0 28px 80px rgba(54,35,48,.08) !important; }
+
+.MuiDrawer-paper {
+  border: 0 !important;
+  color: #fffaf6 !important;
+  background: linear-gradient(180deg, #201a2b 0%, #312035 55%, #46233b 100%) !important;
+}
+.sidebar-content { min-height: 100%; display: flex; flex-direction: column; }
+.sidebar-link { min-height: 50px; margin-bottom: 5px !important; border-radius: 12px !important; color: rgba(255,250,246,.68) !important; }
+.sidebar-link .MuiListItemIcon-root { min-width: 42px; color: inherit; }
+.sidebar-link.active { color: #fffaf6 !important; background: rgba(239,189,145,.15) !important; }
+.sidebar-link.active::before { content: ''; width: 3px; height: 24px; margin-left: 10px; border-radius: 4px; background: #efbd91; }
+.sidebar-link.Mui-disabled { color: rgba(255,250,246,.3) !important; }
+.soon-chip { height: 20px !important; color: rgba(255,250,246,.46) !important; background: rgba(255,255,255,.06) !important; font-size: .62rem !important; }
+
+.dashboard-appbar { color: #241d2d !important; background: rgba(246,241,235,.86) !important; border-bottom: 1px solid rgba(83,32,63,.08); backdrop-filter: blur(18px); }
+.welcome-panel { position: relative; overflow: hidden; padding: clamp(28px, 5vw, 64px); min-height: 330px; display: flex; align-items: center; background: linear-gradient(130deg, #2b1d34 0%, #57304b 65%, #7b315f 100%) !important; }
+.welcome-panel::before { content: ''; position: absolute; width: 380px; height: 380px; border-radius: 50%; border: 1px solid rgba(255,255,255,.1); left: -90px; top: -190px; box-shadow: 0 0 0 55px rgba(255,255,255,.025), 0 0 0 110px rgba(255,255,255,.018); }
+.light-chip { color: #fffaf6 !important; background: rgba(255,255,255,.1) !important; border: 1px solid rgba(255,255,255,.12) !important; }
+.light-chip .MuiChip-icon { color: #efbd91 !important; }
+.demo-chip { color: #402139 !important; background: #efbd91 !important; font-weight: 800 !important; }
+.foundation-card, .roadmap-card { padding: clamp(24px, 3vw, 36px); border: 1px solid rgba(83,32,63,.1); }
+.foundation-card { background: #fffaf6 !important; }
+.roadmap-card { background: rgba(255,250,246,.62) !important; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #28735a; box-shadow: 0 0 0 5px rgba(40,115,90,.1); }
+.roadmap-item { display: flex; align-items: center; gap: 18px; padding: 18px 0; }
+.roadmap-number { color: #b86592; font-weight: 900 !important; font-size: .78rem !important; }
+.roadmap-divider { height: 1px; background: rgba(83,32,63,.09); }
+
+@media (max-width: 900px) {
+  .login-page { grid-template-columns: 1fr; }
+  .login-story { min-height: 290px; padding: 36px 28px; justify-content: flex-end; }
+  .login-story h1 { max-width: 480px; }
+  .login-story > p:not(.eyebrow), .market-stamp { display: none; }
+  .brand-mark { width: 52px; height: 52px; }
+  .login-panel { padding: 22px 16px 42px; margin-top: -18px; position: relative; z-index: 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
+
+/* D6 accessibility: visible keyboard focus everywhere, and a skip link that
+   appears only when focused so mouse users never see it. */
+:focus-visible { outline: 3px solid #b86592; outline-offset: 2px; border-radius: 4px; }
+.skip-link {
+  position: fixed; top: -100px; inset-inline-start: 16px; z-index: 2000;
+  background: #53203f; color: #fffaf6 !important; padding: 10px 18px; border-radius: 10px;
+  font-weight: 800; text-decoration: none; transition: top .15s ease;
+}
+.skip-link:focus-visible { top: 12px; color: #fffaf6 !important; }

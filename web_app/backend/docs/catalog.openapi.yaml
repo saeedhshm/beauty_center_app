@@ -1,0 +1,1558 @@
+openapi: 3.1.0
+info:
+  title: Lamsa Cairo Catalog and Administration
+  version: 0.6.0
+  description: >-
+    API-only administration; no Dashboard UI yet. EGP amounts and percentage rates are
+    decimal strings. Cairo uses Africa/Cairo. Payment mode announces the approved demo
+    policy; payment initiation, confirmation and refunds are documented in
+    payments.openapi.yaml. Availability, slots and booking endpoints are implemented.
+servers:
+  - url: http://127.0.0.1:3000
+paths:
+  /api/v1/configuration:
+    get:
+      operationId: getConfiguration
+      responses:
+        '200':
+          description: Public market and booking policy, without secret settings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    $ref: '#/components/schemas/Configuration'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/cities:
+    get:
+      operationId: listLaunchCities
+      responses:
+        '200':
+          description: Array containing active Cairo only, or an empty array
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { type: array, items: { $ref: '#/components/schemas/City' } }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/services:
+    get:
+      operationId: listActiveServices
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Page'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts:
+    get:
+      operationId: listPublishedExperts
+      description: Active approved experts accepting work in Cairo with at least one active EGP service. Public fields exclude phones and documents.
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: cityId, in: query, schema: { type: integer, minimum: 1, maximum: 32767 } }
+        - { name: serviceId, in: query, schema: { type: integer, minimum: 1, maximum: 32767 } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+      responses:
+        '200':
+          $ref: '#/components/responses/Page'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/{id}:
+    get:
+      operationId: getPublishedExpert
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Public expert fields plus an array of active EGP services
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Expert'
+                      - properties:
+                          services: { type: array, items: { $ref: '#/components/schemas/ExpertPrice' } }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me:
+    patch:
+      operationId: updateOwnExpertProfile
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 2, maxLength: 100 }
+                bio: { type: [string, 'null'], maxLength: 2000 }
+                cityId: { type: integer, minimum: 1, maximum: 32767 }
+                isAcceptingBookings: { type: boolean, description: Requires approved status when enabling }
+      responses:
+        '200':
+          $ref: '#/components/responses/ExpertProfile'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/services:
+    get:
+      operationId: listOwnExpertPrices
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Own services including inactive or legacy SAR entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { type: array, items: { $ref: '#/components/schemas/ExpertPrice' } }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/services/{serviceId}:
+    put:
+      operationId: putOwnExpertPrice
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - { name: serviceId, in: path, required: true, schema: { type: integer, minimum: 1, maximum: 32767 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [price]
+              properties:
+                price: { type: string, pattern: '^\d{1,8}(?:\.\d{1,2})?$' }
+                isActive: { type: boolean, default: true }
+      responses:
+        '200':
+          description: expertId, serviceId, price (two decimals), currency EGP and isActive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/ExpertPrice' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/addresses:
+    get:
+      operationId: listOwnAddresses
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Page'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createOwnAddress
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/AddressInput'
+                - required: [label, addressText, cityId]
+      responses:
+        '201':
+          $ref: '#/components/responses/Address'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/addresses/{id}:
+    parameters:
+      - $ref: '#/components/parameters/Uuid'
+    get:
+      operationId: getOwnAddress
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/Address'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: updateOwnAddress
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/Address'
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteOwnAddress
+      security: [{ MobileBearer: [] }]
+      responses:
+        '204': { description: Deleted saved address; booking snapshots are unaffected }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/auth/login:
+    post:
+      operationId: loginAdmin
+      description: Requires an existing active admin account; never creates or promotes accounts. No cookies are issued.
+      requestBody:
+        $ref: './openapi.yaml#/paths/~1api~1v1~1auth~1login/post/requestBody'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminSession'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/auth/refresh:
+    post:
+      operationId: refreshAdminSession
+      requestBody:
+        $ref: './openapi.yaml#/components/requestBodies/RefreshToken'
+      responses:
+        '200':
+          $ref: '#/components/responses/AdminSession'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/auth/logout:
+    post:
+      operationId: logoutAdminSession
+      requestBody:
+        $ref: './openapi.yaml#/components/requestBodies/RefreshToken'
+      responses:
+        '204': { description: Admin session revoked or unknown token; mobile sessions unaffected }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/me:
+    get:
+      operationId: getCurrentAdmin
+      security: [{ AdminBearer: [] }]
+      responses:
+        '200':
+          description: Current admin public account fields
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/AdminUser' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/settings:
+    get:
+      operationId: getAdminSettings
+      security: [{ AdminBearer: [] }]
+      responses:
+        '200':
+          $ref: '#/paths/~1api~1v1~1configuration/get/responses/200'
+        default:
+          $ref: '#/components/responses/Error'
+    patch:
+      operationId: patchBookingPolicy
+      security: [{ AdminBearer: [] }]
+      description: Merges fields under a row lock and commits an audit record atomically; does not rewrite booking snapshots or deadlines.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PolicyInput'
+      responses:
+        '200':
+          description: Complete updated booking policy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/BookingPolicy' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/cities:
+    get:
+      operationId: listAdminLaunchCities
+      security: [{ AdminBearer: [] }]
+      responses:
+        '200':
+          description: Launch city even when inactive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { type: array, items: { $ref: '#/components/schemas/City' } }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/cities/{id}:
+    patch:
+      operationId: toggleLaunchCity
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SmallId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [isActive]
+              properties: { isActive: { type: boolean } }
+      responses:
+        '200':
+          description: Updated launch city
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/City' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/services:
+    get:
+      operationId: listAdminServices
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/Page'
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: createService
+      security: [{ AdminBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/ServiceInput'
+                - required: [name, durationMin]
+      responses:
+        '201':
+          $ref: '#/components/responses/Service'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/services/{id}:
+    patch:
+      operationId: updateService
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SmallId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceInput'
+      responses:
+        '200':
+          $ref: '#/components/responses/Service'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/experts:
+    get:
+      operationId: listAdminExperts
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: approvalStatus, in: query, schema: { type: string, enum: [pending, approved, suspended] } }
+      responses:
+        '200':
+          $ref: '#/components/responses/Page'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/experts/{id}/approve:
+    post:
+      operationId: approveExpert
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          $ref: '#/components/responses/ExpertProfile'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/experts/{id}/suspend:
+    post:
+      operationId: suspendExpert
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          $ref: '#/components/responses/ExpertProfile'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/experts/{id}:
+    get:
+      operationId: getAdminExpert
+      summary: Admin expert file for any approval status
+      description: Profile with phone and approval state, offered prices, portfolio metadata without storage keys, and identity-document presence without the key.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/AdminExpertDetail' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/users/{id}/deactivate:
+    post:
+      operationId: deactivateUser
+      summary: Deactivate a customer or expert account and revoke every session
+      description: History is preserved; admins and self-deactivation are rejected.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Deactivated account flag
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [id, isActive]
+                    properties:
+                      id: { type: string, format: uuid }
+                      isActive: { type: boolean, const: false }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/users/{id}/reactivate:
+    post:
+      operationId: reactivateUser
+      summary: Reactivate a deactivated customer or expert account
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Reactivated account flag
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [id, isActive]
+                    properties:
+                      id: { type: string, format: uuid }
+                      isActive: { type: boolean, const: true }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: Paginated user directory with role, activity, search and date filters
+      description: Secret-free DTOs only; phone numbers are visible to admins in justified operational context.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: role, in: query, schema: { type: string, enum: [customer, expert, admin] } }
+        - { name: isActive, in: query, schema: { type: boolean } }
+        - { name: q, in: query, schema: { type: string, maxLength: 100 }, description: Matches name or phone prefix }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Users newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [items, pagination]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/ManagedUser' }
+                      pagination:
+                        type: object
+                        required: [page, limit, hasNext]
+                        properties:
+                          page: { type: integer }
+                          limit: { type: integer }
+                          hasNext: { type: boolean }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/users/{id}:
+    get:
+      operationId: getAdminUser
+      summary: Single account file without secrets
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/ManagedUser' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/overview:
+    get:
+      operationId: getAdminOverview
+      summary: Aggregated operations metrics computed over full data
+      description: >-
+        Every figure is computed by the server across all matching rows, never
+        from one results page. Money arrives as decimal strings per currency.
+        Outbox counts are current totals; everything else is bound to the
+        requested range (default: trailing 30 days, Africa/Cairo display).
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Overview' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/audit-logs:
+    get:
+      operationId: listAuditLogs
+      summary: Read admin audit records with filters and pagination
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - { name: action, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: resourceType, in: query, schema: { type: string, maxLength: 100 } }
+        - { name: actorId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Audit records newest first, without secrets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [items, pagination]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditLog' }
+                      pagination:
+                        type: object
+                        required: [page, limit, hasNext]
+                        properties:
+                          page: { type: integer }
+                          limit: { type: integer }
+                          hasNext: { type: boolean }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/portfolio:
+    post:
+      operationId: uploadPortfolioImage
+      summary: Upload a portfolio image (JPEG, PNG or WebP)
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [image]
+              properties:
+                image: { type: string, format: binary }
+                serviceId: { type: integer, minimum: 1, maximum: 32767 }
+      responses:
+        '201':
+          description: Stored image metadata with its file URL; at most 20 per expert
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/PortfolioImage' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/portfolio/{id}:
+    delete:
+      operationId: deletePortfolioImage
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '204':
+          description: Image metadata and object deleted; no body
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/{id}/portfolio:
+    get:
+      operationId: listExpertPortfolio
+      summary: Public portfolio metadata of a discoverable expert
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Image metadata with file URLs, never storage keys
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/PortfolioImage' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/portfolio/{id}/file:
+    get:
+      operationId: downloadPortfolioFile
+      summary: Stream a portfolio image for its owner, admins, or public viewers
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Image bytes with content type
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/identity-document:
+    post:
+      operationId: uploadIdentityDocument
+      summary: Upload or replace the private identity document (image or PDF)
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [document]
+              properties:
+                document: { type: string, format: binary }
+      responses:
+        '200':
+          description: Document stored; the key is never returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [updated]
+                    properties:
+                      updated: { type: boolean, const: true }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/identity-document/file:
+    get:
+      operationId: downloadOwnIdentityDocument
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Own identity document bytes
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/experts/{id}/identity-document/file:
+    get:
+      operationId: downloadExpertIdentityDocument
+      summary: Stream an expert identity document for admin review
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Identity document bytes, never a public link
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/availability:
+    get:
+      operationId: getOwnAvailability
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Own weekly schedule; times are Cairo wall-clock HH:MM
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WeeklySlot' }
+        default:
+          $ref: '#/components/responses/Error'
+    put:
+      operationId: replaceOwnAvailability
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [slots]
+              properties:
+                slots:
+                  type: array
+                  maxItems: 21
+                  items: { $ref: '#/components/schemas/WeeklySlotInput' }
+      responses:
+        '200':
+          description: Replaced weekly schedule
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/WeeklySlot' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/availability-exceptions:
+    get:
+      operationId: listOwnAvailabilityExceptions
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Own availability exceptions ordered by date
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/AvailabilityException' }
+        default:
+          $ref: '#/components/responses/Error'
+    post:
+      operationId: addOwnAvailabilityException
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AvailabilityExceptionInput' }
+      responses:
+        '201':
+          description: Created exception
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/AvailabilityException' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/availability-exceptions/{id}:
+    delete:
+      operationId: deleteOwnAvailabilityException
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '204': { description: Exception deleted }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/{id}/slots:
+    get:
+      operationId: getExpertSlots
+      description: >-
+        Advisory bookable start times for one service in Africa/Cairo, from the weekly
+        schedule plus exceptions minus blocking bookings. Revalidated on booking creation
+        and acceptance; the PostgreSQL exclusion constraint decides under concurrency.
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+        - name: serviceId
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 32767 }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+      responses:
+        '200':
+          description: Slots grouped per local date; past start times are excluded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/SlotRange' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/bookings:
+    post:
+      operationId: createBooking
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          schema: { type: string, format: uuid }
+          description: Optional client key making timeout retries safe; replays return the original booking
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingInput' }
+      responses:
+        '201':
+          description: Pending booking with server-computed money and address snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Booking' }
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listOwnBookings
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, accepted, confirmed, completed, rejected, cancelled, expired] }
+      responses:
+        '200':
+          $ref: '#/components/responses/BookingPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/bookings/{id}:
+    get:
+      operationId: getBooking
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Booking visible to its customer, its expert or an admin, with status history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Booking'
+                      - type: object
+                        required: [statusHistory]
+                        properties:
+                          statusHistory:
+                            type: array
+                            items: { $ref: '#/components/schemas/StatusChange' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/bookings/{id}/accept:
+    post:
+      operationId: acceptBooking
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Booking moved pending to accepted; starts the payment timeout
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Booking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/bookings/{id}/reject:
+    post:
+      operationId: rejectBooking
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransitionInput' }
+      responses:
+        '200':
+          description: Booking moved pending to rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Booking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/bookings/{id}/cancel:
+    post:
+      operationId: cancelBooking
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransitionInput' }
+      responses:
+        '200':
+          description: Pending or accepted booking cancelled by its customer, its expert or an admin
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Booking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/bookings/{id}/complete:
+    post:
+      operationId: completeBooking
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Confirmed booking completed by either party; accepted without payment is rejected
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Booking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/bookings:
+    get:
+      operationId: listAdminBookings
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, accepted, confirmed, completed, rejected, cancelled, expired] }
+        - name: expertId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: customerId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          $ref: '#/components/responses/BookingPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/bookings/{id}:
+    get:
+      operationId: getAdminBooking
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Any booking with its status history
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Booking'
+                      - type: object
+                        required: [statusHistory]
+                        properties:
+                          statusHistory:
+                            type: array
+                            items: { $ref: '#/components/schemas/StatusChange' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/bookings/{id}/cancel:
+    post:
+      operationId: cancelAdminBooking
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TransitionInput' }
+      responses:
+        '200':
+          description: Pending or accepted booking cancelled by operations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Booking' }
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    MobileBearer: { type: http, scheme: bearer, bearerFormat: opaque }
+    AdminBearer: { type: http, scheme: bearer, bearerFormat: opaque, description: Admin-audience session only }
+  parameters:
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+    SmallId: { name: id, in: path, required: true, schema: { type: integer, minimum: 1, maximum: 32767 } }
+    Uuid: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  responses:
+    Error:
+      description: >-
+        401 missing or wrong-audience session; 403 wrong role; 404 missing or unowned resource;
+        409 CITY_UNAVAILABLE, SERVICE_UNAVAILABLE or EXPERT_NOT_APPROVED; 422 validation;
+        429 rate limit; 503 CONFIGURATION_UNAVAILABLE; 500 internal error. No raw SQL details.
+      content:
+        application/json:
+          schema: { $ref: './openapi.yaml#/components/schemas/ErrorResponse' }
+    Page:
+      description: Stable server-side pagination; fields depend on resource (service, expert or address)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, requestId]
+            properties:
+              requestId: { type: string, format: uuid }
+              data:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      anyOf:
+                        - $ref: '#/components/schemas/Service'
+                        - $ref: '#/components/schemas/Expert'
+                        - $ref: '#/components/schemas/Address'
+                  pagination:
+                    type: object
+                    required: [page, limit, hasNext]
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      hasNext: { type: boolean }
+    Service:
+      description: Service, with duration defined at the service level
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              requestId: { type: string, format: uuid }
+              data: { $ref: '#/components/schemas/Service' }
+    Address:
+      description: Own address only; changing it cannot alter prior booking snapshots
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              requestId: { type: string, format: uuid }
+              data: { $ref: '#/components/schemas/Address' }
+    ExpertProfile:
+      description: userId, name, cityId, bio, approvalStatus, isAcceptingBookings; excludes document references
+      content:
+        application/json:
+          schema:
+            $ref: './openapi.yaml#/paths/~1api~1v1~1experts~1me/get/responses/200/content/application~1json/schema'
+    BookingPage:
+      description: Stable server-side pagination over bookings ordered by start time descending
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, requestId]
+            properties:
+              requestId: { type: string, format: uuid }
+              data:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Booking' }
+                  pagination:
+                    type: object
+                    required: [page, limit, hasNext]
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      hasNext: { type: boolean }
+    AdminSession:
+      description: Admin Bearer session; same token lifetimes and reuse-revocation rules as mobile, isolated audience
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, requestId]
+            properties:
+              requestId: { type: string, format: uuid }
+              data:
+                type: object
+                required: [user, tokenType, accessToken, refreshToken, accessExpiresAt, refreshExpiresAt]
+                properties:
+                  user: { $ref: '#/components/schemas/AdminUser' }
+                  tokenType: { type: string, const: Bearer }
+                  accessToken: { type: string, pattern: '^la_[A-Za-z0-9_-]{43}$' }
+                  refreshToken: { type: string, pattern: '^lr_[A-Za-z0-9_-]{43}$' }
+                  accessExpiresAt: { type: string, format: date-time }
+                  refreshExpiresAt: { type: string, format: date-time }
+  schemas:
+    City:
+      type: object
+      required: [id, name, code, isActive]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        code: { type: string, const: EG-CAI }
+        isActive: { type: boolean }
+    AuditLog:
+      type: object
+      required: [id, actorId, action, resourceType, resourceId, details, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        actorId: { type: string, format: uuid }
+        action: { type: string }
+        resourceType: { type: string }
+        resourceId: { type: string }
+        details: { type: object }
+        createdAt: { type: string, format: date-time }
+    PortfolioImage:
+      type: object
+      required: [id, serviceId, sortOrder, url]
+      properties:
+        id: { type: string, format: uuid }
+        serviceId: { type: [integer, 'null'] }
+        sortOrder: { type: integer }
+        url: { type: string }
+    AdminExpertDetail:
+      type: object
+      required: [id, name, cityId, cityName, bio, ratingAvg, ratingCount, phone, isActive, approvalStatus, isAcceptingBookings, services, portfolio, identityDocument]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        cityId: { type: [integer, 'null'] }
+        cityName: { type: [string, 'null'] }
+        bio: { type: [string, 'null'] }
+        ratingAvg: { type: string }
+        ratingCount: { type: integer }
+        phone: { type: string, description: Visible to admins only, in justified operational context }
+        isActive: { type: boolean }
+        approvalStatus: { type: string, enum: [pending, approved, suspended] }
+        isAcceptingBookings: { type: boolean }
+        services:
+          type: array
+          items: { $ref: '#/components/schemas/ExpertPrice' }
+        portfolio:
+          type: array
+          items: { $ref: '#/components/schemas/PortfolioImage' }
+        identityDocument:
+          type: object
+          required: [present]
+          properties:
+            present: { type: boolean, description: Whether a private identity document is on file; the key itself is never exposed }
+    PolicyInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        acceptanceTimeoutMinutes: { type: integer, minimum: 1, maximum: 1440 }
+        paymentTimeoutMinutes: { type: integer, minimum: 1, maximum: 1440 }
+        commissionRate: { type: string, pattern: '^\d{1,3}(?:\.\d{1,4})?$', description: 'Percentage in range 0–100, normalized to four decimals' }
+    BookingPolicy:
+      allOf:
+        - $ref: '#/components/schemas/PolicyInput'
+        - required: [acceptanceTimeoutMinutes, paymentTimeoutMinutes, commissionRate]
+    Configuration:
+      type: object
+      required: [launchCity, currency, timeZone, paymentMode, daytimeOnly, bookingPolicy]
+      properties:
+        launchCity: { $ref: '#/components/schemas/City' }
+        currency: { type: string, const: EGP }
+        timeZone: { type: string, const: Africa/Cairo }
+        paymentMode: { type: string, const: demo }
+        daytimeOnly: { type: boolean, const: true }
+        bookingPolicy: { $ref: '#/components/schemas/BookingPolicy' }
+    ServiceInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 2, maxLength: 100 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        durationMin: { type: integer, minimum: 1, maximum: 1440 }
+        isActive: { type: boolean, description: Defaults true on creation only; PATCH preserves omitted fields }
+    Service:
+      type: object
+      required: [id, name, description, durationMin, isActive]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        durationMin: { type: integer }
+        isActive: { type: boolean }
+    Expert:
+      type: object
+      required: [id, name, cityId, cityName, bio, ratingAvg, ratingCount]
+      description: Admin lists additionally expose phone, isActive, approvalStatus and isAcceptingBookings; public lists do not.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        cityId: { type: [integer, 'null'] }
+        cityName: { type: [string, 'null'] }
+        bio: { type: [string, 'null'] }
+        ratingAvg: { type: string }
+        ratingCount: { type: integer }
+    ExpertPrice:
+      type: object
+      required: [serviceId, price, currency, isActive]
+      properties:
+        expertId: { type: string, format: uuid, description: Returned by PUT }
+        serviceId: { type: integer }
+        price: { type: string }
+        currency: { type: string, description: EGP for new prices; own list may contain legacy SAR }
+        isActive: { type: boolean }
+        name: { type: string, description: Returned in service lists }
+        description: { type: [string, 'null'] }
+        durationMin: { type: integer }
+        serviceIsActive: { type: boolean }
+    AddressInput:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: lat/lng must both be supplied or both omitted; use two nulls to remove coordinates
+      properties:
+        label: { type: string, minLength: 1, maxLength: 100 }
+        addressText: { type: string, minLength: 5, maxLength: 1000 }
+        cityId: { type: integer, minimum: 1, maximum: 32767 }
+        lat: { type: [string, 'null'], description: Decimal string with up to 6 places in range -90 to 90 }
+        lng: { type: [string, 'null'], description: Decimal string with up to 6 places in range -180 to 180 }
+        isDefault: { type: boolean, description: Defaults false on creation only }
+    Address:
+      type: object
+      required: [id, label, addressText, cityId, lat, lng, isDefault]
+      properties:
+        id: { type: string, format: uuid }
+        label: { type: string }
+        addressText: { type: string }
+        cityId: { type: integer }
+        lat: { type: [string, 'null'] }
+        lng: { type: [string, 'null'] }
+        isDefault: { type: boolean }
+    Overview:
+      type: object
+      required: [range, bookings, payments, payouts, reviews, users, outbox, worker]
+      properties:
+        range:
+          type: object
+          required: [from, to, timeZone]
+          properties:
+            from: { type: string, format: date-time }
+            to: { type: string, format: date-time }
+            timeZone: { type: string, const: Africa/Cairo }
+        bookings:
+          type: array
+          items:
+            type: object
+            required: [status, count]
+            properties:
+              status: { type: string }
+              count: { type: integer }
+        payments:
+          type: array
+          items:
+            type: object
+            required: [status, currency, total, count]
+            properties:
+              status: { type: string }
+              currency: { type: string }
+              total: { type: string }
+              count: { type: integer }
+        payouts:
+          type: array
+          items:
+            type: object
+            required: [transferred, currency, total, count]
+            properties:
+              transferred: { type: boolean }
+              currency: { type: string }
+              total: { type: string }
+              count: { type: integer }
+        reviews:
+          type: object
+          required: [count, average]
+          properties:
+            count: { type: integer }
+            average: { type: [string, 'null'] }
+        users:
+          type: array
+          items:
+            type: object
+            required: [role, count]
+            properties:
+              role: { type: string }
+              count: { type: integer }
+        outbox:
+          type: array
+          items:
+            type: object
+            required: [status, count]
+            properties:
+              status: { type: string }
+              count: { type: integer }
+        worker:
+          type: [object, 'null']
+          description: Last successful worker tick, or null when no tick has ever run
+          properties:
+            tickAt: { type: string, format: date-time }
+            expired: { type: integer }
+            claimed: { type: integer }
+            sent: { type: integer }
+            retried: { type: integer }
+            cleaned: { type: integer }
+    AdminUser:
+      type: object
+      required: [id, name, phone, role, phoneVerified]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        role: { type: string, const: admin }
+        phoneVerified: { type: boolean, const: true }
+    ManagedUser:
+      type: object
+      required: [id, name, phone, role, cityId, isActive, phoneVerified, ratingAvg, ratingCount, createdAt]
+      description: Admin directory DTO for any role; never carries password or token hashes
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        phone: { type: string }
+        role: { type: string, enum: [customer, expert, admin] }
+        cityId: { type: [integer, 'null'] }
+        cityName: { type: [string, 'null'] }
+        isActive: { type: boolean }
+        phoneVerified: { type: boolean }
+        ratingAvg: { type: string }
+        ratingCount: { type: integer }
+        createdAt: { type: string, format: date-time }
+    WeeklySlotInput:
+      type: object
+      additionalProperties: false
+      required: [dayOfWeek, startTime, endTime]
+      properties:
+        dayOfWeek: { type: integer, minimum: 1, maximum: 7, description: 'ISO weekday, Monday 1 to Sunday 7' }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: 'Cairo wall-clock, inside 09:00 to 22:00' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+    WeeklySlot:
+      allOf:
+        - $ref: '#/components/schemas/WeeklySlotInput'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    AvailabilityExceptionInput:
+      type: object
+      additionalProperties: false
+      required: [date, type]
+      properties:
+        date: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$', description: 'Cairo local date, today or later' }
+        startTime: { type: [string, 'null'], pattern: '^([01]\d|2[0-3]):[0-5]\d$', description: Null together with endTime means the full day }
+        endTime: { type: [string, 'null'], pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+        type: { type: string, enum: [available, unavailable] }
+        reason: { type: [string, 'null'], maxLength: 500 }
+    AvailabilityException:
+      allOf:
+        - $ref: '#/components/schemas/AvailabilityExceptionInput'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string, format: uuid }
+    SlotRange:
+      type: object
+      required: [expertId, service, timeZone, days]
+      properties:
+        expertId: { type: string, format: uuid }
+        service:
+          type: object
+          required: [id, durationMin]
+          properties:
+            id: { type: integer }
+            durationMin: { type: integer }
+        timeZone: { type: string, const: Africa/Cairo }
+        days:
+          type: array
+          items:
+            type: object
+            required: [date, slots]
+            properties:
+              date: { type: string, pattern: '^\d{4}-\d{2}-\d{2}$' }
+              slots:
+                type: array
+                items:
+                  type: object
+                  required: [startsAt, endsAt]
+                  properties:
+                    startsAt: { type: string, format: date-time }
+                    endsAt: { type: string, format: date-time }
+    BookingInput:
+      type: object
+      additionalProperties: false
+      required: [expertId, serviceId, addressId, startsAt]
+      properties:
+        expertId: { type: string, format: uuid }
+        serviceId: { type: integer, minimum: 1, maximum: 32767 }
+        addressId: { type: string, format: uuid, description: Owned saved address; its content is snapshotted }
+        startsAt: { type: string, format: date-time, description: Future start inside the expert working hours }
+        notes: { type: [string, 'null'], maxLength: 1000 }
+    Booking:
+      type: object
+      required: [id, customerId, expertId, serviceId, status, startsAt, endsAt, timeZone, addressText, cityId, price, commissionRate, commissionAmount, expertEarning, vatRate, vatAmount, totalAmount, currency]
+      properties:
+        id: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        expertId: { type: string, format: uuid }
+        serviceId: { type: integer }
+        status: { type: string, enum: [pending, accepted, confirmed, completed, rejected, cancelled, expired] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        timeZone: { type: string, const: Africa/Cairo }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        addressText: { type: string }
+        cityId: { type: integer }
+        lat: { type: [string, 'null'] }
+        lng: { type: [string, 'null'] }
+        price: { type: string, description: Decimal string with two places }
+        commissionRate: { type: string, description: 'Percent with four places, for example 20.0000' }
+        commissionAmount: { type: string }
+        expertEarning: { type: string }
+        vatRate: { type: string, description: Zero snapshot until the tax model is approved }
+        vatAmount: { type: string }
+        totalAmount: { type: string }
+        currency: { type: string, const: EGP }
+        notes: { type: [string, 'null'] }
+        cancelledBy: { type: [string, 'null'], format: uuid }
+        cancellationReason: { type: [string, 'null'] }
+        cancelledAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    StatusChange:
+      type: object
+      required: [id, status, changedBy, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, accepted, confirmed, completed, rejected, cancelled, expired] }
+        changedBy: { type: [string, 'null'], format: uuid, description: Null marks a system event such as expiry }
+        createdAt: { type: string, format: date-time }
+    TransitionInput:
+      type: object
+      additionalProperties: false
+      properties:
+        reason: { type: [string, 'null'], maxLength: 500 }

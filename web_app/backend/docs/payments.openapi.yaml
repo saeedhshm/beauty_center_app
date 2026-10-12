@@ -1,0 +1,304 @@
+openapi: 3.1.0
+info:
+  title: Lamsa Demo Payments and Webhooks
+  version: 0.6.0
+  description: >-
+    Demo-only payment initiation, provider callbacks and operations refunds.
+    Amounts are decimal strings in EGP and always come from the server; client
+    echoes are matched, never trusted. No real funds move in demo mode.
+servers:
+  - url: http://127.0.0.1:3000
+paths:
+  /api/v1/bookings/{id}/payments:
+    post:
+      operationId: initiateBookingPayment
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '201':
+          description: New pending demo intent with a one-time callback token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [payment, callbackToken, reused]
+                    properties:
+                      payment: { $ref: '#/components/schemas/Payment' }
+                      callbackToken:
+                        type: string
+                        description: Opaque demo credential for the webhook call; revealed once, stored hashed
+                      reused: { type: boolean, description: True when an existing pending intent was returned with a rotated token }
+        '200':
+          description: Existing pending intent returned with a rotated callback token
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [payment, callbackToken, reused]
+                    properties:
+                      payment: { $ref: '#/components/schemas/Payment' }
+                      callbackToken: { type: string }
+                      reused: { type: boolean, const: true }
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listBookingPayments
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Payment attempts of a booking visible to its customer, its expert or an admin
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Payment' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/webhooks/payments/demo:
+    post:
+      operationId: demoPaymentWebhook
+      description: >-
+        Simulated provider callback. Verified by the opaque per-intent token, not a
+        user session. Redeliveries with the same event id are a no-op. A paid event
+        for a booking that is no longer accepted is recorded without confirming it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DemoWebhookInput' }
+      responses:
+        '200':
+          description: Event applied or deduplicated; confirmed mirrors the booking row, so a replayed late success reads false while the booking stays expired
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [payment, confirmed, deduped]
+                    properties:
+                      payment: { $ref: '#/components/schemas/Payment' }
+                      confirmed: { type: boolean }
+                      deduped: { type: boolean }
+                      note:
+                        type: string
+                        enum: [BOOKING_EXPIRED, BOOKING_NOT_CONFIRMABLE, BOOKING_MISSING]
+                        description: Present when a paid event did not confirm the booking
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payments:
+    get:
+      operationId: listAdminPayments
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, paid, failed, refunded] }
+        - name: bookingId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          $ref: '#/components/responses/PaymentPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payments/{id}:
+    get:
+      operationId: getAdminPayment
+      summary: Payment with its linked booking snapshot for operations review
+      description: Enriched read without N+1 follow-ups; never exposes the callback token hash.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Payment'
+                      - type: object
+                        required: [booking]
+                        properties:
+                          booking: { $ref: '#/components/schemas/PaymentBookingRef' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payments/late:
+    get:
+      operationId: listLatePayments
+      summary: Paid attempts whose booking never confirmed, for manual settlement review
+      description: Read-only review queue; late success is never auto-settled by this endpoint.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [items, pagination]
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          allOf:
+                            - $ref: '#/components/schemas/Payment'
+                            - type: object
+                              required: [bookingStatus]
+                              properties:
+                                bookingStatus: { type: string }
+                      pagination:
+                        type: object
+                        required: [page, limit, hasNext]
+                        properties:
+                          page: { type: integer }
+                          limit: { type: integer }
+                          hasNext: { type: boolean }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payments/{id}/refund:
+    post:
+      operationId: refundPayment
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                reason: { type: [string, 'null'], maxLength: 500 }
+      responses:
+        '200':
+          description: Full refund of a paid payment; a confirmed booking is cancelled atomically
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Payment' }
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    MobileBearer: { type: http, scheme: bearer, bearerFormat: opaque }
+    AdminBearer: { type: http, scheme: bearer, bearerFormat: opaque, description: Admin-audience session only }
+  parameters:
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+    Uuid: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  responses:
+    Error:
+      description: >-
+        401 wrong token or audience; 403 wrong role; 404 missing or unowned payment;
+        409 PAYMENT_ALREADY_SETTLED, AMOUNT_MISMATCH, BOOKING_EXPIRED or INVALID_TRANSITION;
+        422 validation; 500 internal error. No raw SQL details.
+      content:
+        application/json:
+          schema: { $ref: './openapi.yaml#/components/schemas/ErrorResponse' }
+    PaymentPage:
+      description: Stable server-side pagination over payments ordered by creation time
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, requestId]
+            properties:
+              requestId: { type: string, format: uuid }
+              data:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Payment' }
+                  pagination:
+                    type: object
+                    required: [page, limit, hasNext]
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      hasNext: { type: boolean }
+  schemas:
+    Payment:
+      type: object
+      required: [id, bookingId, amount, currency, status, provider, refundedAmount, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        amount: { type: string, description: 'Decimal string with two places, snapshotted from the booking total' }
+        currency: { type: string, const: EGP }
+        status: { type: string, enum: [pending, paid, failed, refunded] }
+        provider: { type: string, const: demo }
+        providerRef: { type: [string, 'null'] }
+        failureReason: { type: [string, 'null'] }
+        refundedAmount: { type: string, description: Full amount on refund; partial refunds are not supported }
+        paidAt: { type: [string, 'null'], format: date-time }
+        refundedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PaymentBookingRef:
+      type: object
+      required: [id, customerId, expertId, status, startsAt, endsAt, totalAmount, currency]
+      properties:
+        id: { type: string, format: uuid }
+        customerId: { type: string, format: uuid }
+        expertId: { type: string, format: uuid }
+        status: { type: string, enum: [pending, accepted, confirmed, completed, rejected, cancelled, expired] }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        totalAmount: { type: string }
+        currency: { type: string }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        payoutId: { type: [string, 'null'], format: uuid }
+    DemoWebhookInput:
+      type: object
+      additionalProperties: false
+      required: [paymentId, eventId, outcome, amount, currency, token]
+      properties:
+        paymentId: { type: string, format: uuid }
+        eventId: { type: string, maxLength: 100, description: 'Provider event id, the durable deduplication key' }
+        outcome: { type: string, enum: [paid, failed] }
+        amount: { type: string, description: Echoed back for server-side matching only }
+        currency: { type: string, pattern: '^[A-Z]{3}$' }
+        token: { type: string, description: Per-intent demo callback token issued at initiation }
+        failureReason: { type: [string, 'null'], maxLength: 500 }

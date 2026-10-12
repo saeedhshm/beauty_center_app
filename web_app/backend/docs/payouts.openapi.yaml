@@ -1,0 +1,306 @@
+openapi: 3.1.0
+info:
+  title: Lamsa Expert Payouts and Earnings
+  version: 0.6.0
+  description: >-
+    Operations-recorded payouts from server-computed expert earnings. Recording a
+    payout only earmarks funds; transfer records a manual operations transfer with
+    its reference and is never an automatic bank transfer. No schema change was
+    needed: the payouts design and the booking link already sufficed.
+servers:
+  - url: http://127.0.0.1:3000
+paths:
+  /api/v1/admin/payouts:
+    post:
+      operationId: createPayout
+      security: [{ AdminBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expertId, bookingIds]
+              properties:
+                expertId: { type: string, format: uuid }
+                bookingIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items: { type: string, format: uuid }
+      responses:
+        '201':
+          description: Recorded payout with the linked booking ids; amount is the sum of expert earnings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Payout'
+                      - type: object
+                        required: [bookings]
+                        properties:
+                          bookings:
+                            type: array
+                            items: { type: string, format: uuid }
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listAdminPayouts
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: expertId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: transferred
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          $ref: '#/components/responses/PayoutPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payouts/eligible:
+    get:
+      operationId: listEligiblePayoutBookings
+      summary: Completed, paid, unlinked bookings available for a payout
+      description: Same eligibility predicate as payout creation; creation re-checks under row locks.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - name: expertId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [expertId, bookings]
+                    properties:
+                      expertId: { type: string, format: uuid }
+                      bookings:
+                        type: array
+                        items: { $ref: '#/components/schemas/PayoutBooking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payouts/{id}:
+    get:
+      operationId: getAdminPayout
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Payout with its linked bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Payout'
+                      - type: object
+                        required: [bookings]
+                        properties:
+                          bookings:
+                            type: array
+                            items: { $ref: '#/components/schemas/PayoutBooking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/payouts/{id}/transfer:
+    post:
+      operationId: transferPayout
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [transferRef]
+              properties:
+                transferRef: { type: string, minLength: 1, maxLength: 200 }
+      responses:
+        '200':
+          description: Manual transfer recorded with its reference; replays return the stored record
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Payout' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/payouts:
+    get:
+      operationId: listOwnPayouts
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/PayoutPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/payouts/{id}:
+    get:
+      operationId: getOwnPayout
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Own payout with its linked bookings
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    allOf:
+                      - $ref: '#/components/schemas/Payout'
+                      - type: object
+                        required: [bookings]
+                        properties:
+                          bookings:
+                            type: array
+                            items: { $ref: '#/components/schemas/PayoutBooking' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/me/earnings:
+    get:
+      operationId: getOwnEarnings
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Server-computed eligible, recorded and transferred earnings; no projections
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Earnings' }
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    MobileBearer: { type: http, scheme: bearer, bearerFormat: opaque }
+    AdminBearer: { type: http, scheme: bearer, bearerFormat: opaque, description: Admin-audience session only }
+  parameters:
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+    Uuid: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  responses:
+    Error:
+      description: >-
+        401 wrong audience; 403 wrong role; 404 missing, unowned or cross-expert payout;
+        409 BOOKING_ALREADY_PAID_OUT, BOOKING_IN_PAYOUT or INVALID_TRANSITION; 422 validation;
+        500 internal error. No raw SQL details.
+      content:
+        application/json:
+          schema: { $ref: './openapi.yaml#/components/schemas/ErrorResponse' }
+    PayoutPage:
+      description: Stable server-side pagination over payouts ordered by creation time
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, requestId]
+            properties:
+              requestId: { type: string, format: uuid }
+              data:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Payout' }
+                  pagination:
+                    type: object
+                    required: [page, limit, hasNext]
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      hasNext: { type: boolean }
+  schemas:
+    Payout:
+      type: object
+      required: [id, expertId, amount, currency, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        expertId: { type: string, format: uuid }
+        amount: { type: string, description: 'Decimal string, the sum of linked expert earnings' }
+        currency: { type: string, const: EGP }
+        transferRef: { type: [string, 'null'], description: Operations reference of the manual transfer }
+        transferredAt: { type: [string, 'null'], format: date-time, description: Null means recorded but not transferred }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    PayoutBooking:
+      type: object
+      required: [id, status, startsAt, endsAt, totalAmount, expertEarning, currency]
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string }
+        startsAt: { type: string, format: date-time }
+        endsAt: { type: string, format: date-time }
+        totalAmount: { type: string }
+        expertEarning: { type: string }
+        currency: { type: string }
+    Earnings:
+      type: object
+      required: [eligible, recorded, transferred]
+      properties:
+        eligible:
+          type: array
+          description: Completed, paid and unlinked bookings, summed per currency
+          items:
+            type: object
+            required: [currency, amount]
+            properties:
+              currency: { type: string }
+              amount: { type: string }
+        recorded:
+          type: array
+          description: Recorded but untransferred payouts, summed per currency
+          items:
+            type: object
+            required: [currency, amount]
+            properties:
+              currency: { type: string }
+              amount: { type: string }
+        transferred:
+          type: array
+          description: Transferred payouts, summed per currency
+          items:
+            type: object
+            required: [currency, amount]
+            properties:
+              currency: { type: string }
+              amount: { type: string }

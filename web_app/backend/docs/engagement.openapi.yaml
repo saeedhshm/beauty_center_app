@@ -1,0 +1,442 @@
+openapi: 3.1.0
+info:
+  title: Lamsa Reviews and Notifications
+  version: 0.7.0
+  description: >-
+    Mutual reviews after a completed booking, plus the caller's own notification
+    feed and device registrations. Reviews are written by a booking party only, once
+    per party, and the stored average is recomputed from the reviews table in the
+    same transaction. Notifications are stored inside the booking or payment
+    transaction and delivered afterwards by a worker, so a push failure never
+    rolls back the booking. Delivery mode is configured by PUSH_MODE: demo
+    simulates delivery, disabled reports PUSH_DELIVERY_UNAVAILABLE. Notification
+    bodies and push payloads carry a booking id only, never an address, phone or
+    amount, and opening a deep link still requires the session and ownership check
+    on the booking endpoint.
+servers:
+  - url: http://127.0.0.1:3000
+paths:
+  /api/v1/bookings/{id}/reviews:
+    post:
+      operationId: submitBookingReview
+      description: >-
+        Reviews the other party once the booking is completed. The reviewer and
+        reviewee are read from the booking, never from the request body.
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                comment: { type: [string, 'null'], maxLength: 1000 }
+      responses:
+        '201':
+          description: Review stored and the reviewee rating recomputed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [review, rating]
+                    properties:
+                      review: { $ref: '#/components/schemas/Review' }
+                      rating: { $ref: '#/components/schemas/Rating' }
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listBookingReviews
+      description: Both directions of one booking, for its parties or an administrator
+      security: [{ MobileBearer: [] }, { AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Reviews written for this booking
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Review' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/experts/{id}/reviews:
+    get:
+      operationId: listExpertReviews
+      description: Public reviews of an expert the catalog already exposes
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          $ref: '#/components/responses/ReviewPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/reviews:
+    get:
+      operationId: listAdminReviews
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: bookingId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: revieweeId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: rating
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 5 }
+      responses:
+        '200':
+          $ref: '#/components/responses/ReviewPage'
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/devices:
+    post:
+      operationId: registerDevice
+      description: >-
+        Registers a push device for the current session. Re-registering a known
+        token moves it to the current owner instead of duplicating it. The token
+        is never echoed back.
+      security: [{ MobileBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token]
+              properties:
+                token: { type: string, minLength: 8, maxLength: 500 }
+      responses:
+        '201':
+          description: Device registered for the caller
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/Device' }
+        default:
+          $ref: '#/components/responses/Error'
+    get:
+      operationId: listDevices
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Devices of the caller, without their tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Device' }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/devices/{id}:
+    delete:
+      operationId: removeDevice
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '204':
+          description: Device removed
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/notifications:
+    get:
+      operationId: listNotifications
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: unreadOnly
+          in: query
+          schema: { type: string, enum: ['true', 'false'], default: 'false' }
+      responses:
+        '200':
+          description: Notifications of the caller, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [items, pagination]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Notification' }
+                      pagination:
+                        type: object
+                        required: [page, limit, hasNext]
+                        properties:
+                          page: { type: integer }
+                          limit: { type: integer }
+                          hasNext: { type: boolean }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/notifications/unread-count:
+    get:
+      operationId: countUnreadNotifications
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Unread notification count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [unread]
+                    properties:
+                      unread: { type: integer, minimum: 0 }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/notifications/{id}/read:
+    post:
+      operationId: markNotificationRead
+      security: [{ MobileBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Marked read, or already read for the caller
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [id, read]
+                    properties:
+                      id: { type: string, format: uuid }
+                      read: { type: boolean, const: true }
+                      readAt: { type: string, format: date-time }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      security: [{ MobileBearer: [] }]
+      responses:
+        '200':
+          description: Every unread notification of the caller marked read
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [markedRead]
+                    properties:
+                      markedRead: { type: integer, minimum: 0 }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/notifications/outbox:
+    get:
+      operationId: listAdminOutbox
+      summary: Delivery queue rows with event type, owner, attempts and last error
+      description: Read-only operations view; phones, tokens and payloads never leave the server.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema: { type: string, enum: [pending, sent, failed] }
+      responses:
+        '200':
+          description: Outbox rows newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [items, pagination]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/OutboxRow' }
+                      pagination:
+                        type: object
+                        required: [page, limit, hasNext]
+                        properties:
+                          page: { type: integer }
+                          limit: { type: integer }
+                          hasNext: { type: boolean }
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/notifications/outbox/{id}/retry:
+    post:
+      operationId: retryAdminOutbox
+      summary: Requeue one failed row with a fresh attempt budget
+      description: Only failed rows qualify; anything else answers 409. The retry itself is audited. Delivery still happens in the worker, never inside this request.
+      security: [{ AdminBearer: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Uuid'
+      responses:
+        '200':
+          description: Requeued row id and status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, requestId]
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data:
+                    type: object
+                    required: [id, status]
+                    properties:
+                      id: { type: string, format: uuid }
+                      status: { type: string, const: pending }
+        default:
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    MobileBearer: { type: http, scheme: bearer, bearerFormat: opaque }
+    AdminBearer: { type: http, scheme: bearer, bearerFormat: opaque, description: Admin-audience session only }
+  parameters:
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+    Uuid: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  responses:
+    Error:
+      description: >-
+        401 missing or wrong audience token; 403 wrong role; 404 missing or unowned
+        resource; 409 INVALID_TRANSITION when the booking is not completed, or
+        DUPLICATE_REVIEW for a second review by the same party; 422 validation;
+        500 internal error. No raw SQL details.
+      content:
+        application/json:
+          schema: { $ref: './openapi.yaml#/components/schemas/ErrorResponse' }
+    ReviewPage:
+      description: Stable server-side pagination over reviews ordered by creation time
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, requestId]
+            properties:
+              requestId: { type: string, format: uuid }
+              data:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Review' }
+                  pagination:
+                    type: object
+                    required: [page, limit, hasNext]
+                    properties:
+                      page: { type: integer }
+                      limit: { type: integer }
+                      hasNext: { type: boolean }
+  schemas:
+    OutboxRow:
+      type: object
+      required: [id, status, attempts, nextAttemptAt, createdAt, userId, type]
+      description: One delivery attempt row; redacted lastError text only, no tokens or payloads
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, sent, failed] }
+        attempts: { type: integer, minimum: 0 }
+        nextAttemptAt: { type: string, format: date-time }
+        lastError: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        userId: { type: string, format: uuid }
+        type: { type: string }
+    Review:
+      type: object
+      required: [id, rating, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        bookingId: { type: string, format: uuid }
+        reviewerId: { type: string, format: uuid }
+        revieweeId: { type: string, format: uuid }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        comment: { type: [string, 'null'] }
+        serviceName: { type: [string, 'null'] }
+        reviewerName: { type: string }
+        revieweeName: { type: string }
+        fromCustomer:
+          type: boolean
+          description: Present on public and booking listings; true when the customer wrote it
+        createdAt: { type: string, format: date-time }
+    Rating:
+      type: object
+      required: [average, count]
+      properties:
+        average: { type: string, description: 'Decimal string with two places, recomputed from the reviews table' }
+        count: { type: integer, minimum: 0 }
+    Device:
+      type: object
+      required: [id, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Notification:
+      type: object
+      required: [id, type, title, body, readAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum:
+            [booking_requested, booking_accepted, booking_rejected, booking_cancelled,
+             booking_confirmed, booking_completed, booking_expired, payment_failed,
+             payment_refunded, review_received]
+        title: { type: string }
+        body: { type: string, description: 'Wording only; never an address, phone or amount' }
+        data:
+          type: [object, 'null']
+          description: Deep-link payload holding the booking id only
+          additionalProperties: { type: string }
+        readAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
