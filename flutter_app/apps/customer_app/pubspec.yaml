@@ -13,6 +13,8 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.2.1
   go_router: ^17.1.0
+  lamsa_authentication:
+    path: ../../packages/authentication
   lamsa_design_system:
     path: ../../packages/design_system
   lamsa_localization:

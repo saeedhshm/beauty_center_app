@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lamsa_authentication/lamsa_authentication.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
@@ -11,28 +14,98 @@ final appConfigProvider = Provider<AppConfig>(
 final networkMonitorProvider = Provider<NetworkMonitor>(
   (ref) => NetworkMonitor(),
 );
-final networkStateProvider = StreamProvider<bool>(
-  (ref) => ref.watch(networkMonitorProvider).changes,
-);
-final apiClientProvider = Provider<ApiClient>(
+final networkStateProvider = StreamProvider<bool>((ref) async* {
+  final monitor = ref.watch(networkMonitorProvider);
+  yield await monitor.isConnected;
+  yield* monitor.changes;
+});
+final rawApiClientProvider = Provider<ApiClient>(
   (ref) => ApiClient(config: ref.watch(appConfigProvider)),
 );
-
-final _router = GoRouter(
-  routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const CustomerFoundationPage(),
-    ),
-  ],
+final authGatewayProvider = Provider<AuthGateway>(
+  (ref) => AuthApi(ref.watch(rawApiClientProvider)),
 );
+final sessionStoreProvider = Provider<SessionStore>(
+  (ref) => SecureSessionStore(namespace: 'lamsa_customer'),
+);
+final sessionManagerProvider = Provider<SessionManager>((ref) {
+  final manager = SessionManager(
+    expectedRole: AuthRole.customer,
+    gateway: ref.watch(authGatewayProvider),
+    store: ref.watch(sessionStoreProvider),
+  );
+  ref.onDispose(manager.dispose);
+  unawaited(manager.bootstrap());
+  return manager;
+});
+final authenticatedApiClientProvider = Provider<ApiClient>(
+  (ref) => ApiClient(
+    config: ref.watch(appConfigProvider),
+    authenticator: ref.watch(sessionManagerProvider),
+  ),
+);
+final accountApiProvider = Provider<AccountGateway>(
+  (ref) => AccountApi(ref.watch(authenticatedApiClientProvider)),
+);
+
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final session = ref.watch(sessionManagerProvider);
+  final router = GoRouter(
+    initialLocation: '/splash',
+    refreshListenable: session,
+    redirect: (context, state) {
+      final location = state.matchedLocation;
+      return switch (session.phase) {
+        SessionPhase.restoring => location == '/splash' ? null : '/splash',
+        SessionPhase.offline => location == '/offline' ? null : '/offline',
+        SessionPhase.anonymous ||
+        SessionPhase.expired ||
+        SessionPhase.wrongRole => location == '/auth' ? null : '/auth',
+        SessionPhase.authenticated => location == '/home' ? null : '/home',
+      };
+    },
+    routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SessionBootstrapScreen(),
+      ),
+      GoRoute(
+        path: '/offline',
+        builder: (context, state) => OfflineSessionScreen(manager: session),
+      ),
+      GoRoute(
+        path: '/auth',
+        builder: (context, state) => LamsaAuthScreen(
+          manager: session,
+          audienceLabel: context.lamsa.customerApp,
+          initialMessage: switch (session.phase) {
+            SessionPhase.expired => context.lamsa.sessionExpired,
+            SessionPhase.wrongRole => context.lamsa.customerWrongRole,
+            _ => null,
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => LamsaAccountScreen(
+          manager: session,
+          api: ref.read(accountApiProvider),
+          title: context.lamsa.customerApp,
+        ),
+      ),
+    ],
+  );
+  ref.onDispose(router.dispose);
+  return router;
+});
 
 class CustomerApp extends ConsumerWidget {
   const CustomerApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.watch(apiClientProvider);
+    final router = ref.watch(appRouterProvider);
+    final network = ref.watch(networkStateProvider);
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'لمسة',
@@ -40,31 +113,10 @@ class CustomerApp extends ConsumerWidget {
       supportedLocales: LamsaLocalizations.supportedLocales,
       localizationsDelegates: LamsaLocalizations.localizationsDelegates,
       theme: LamsaTheme.light(),
-      routerConfig: _router,
-    );
-  }
-}
-
-class CustomerFoundationPage extends ConsumerWidget {
-  const CustomerFoundationPage({super.key});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final network = ref.watch(networkStateProvider);
-    final config = ref.watch(appConfigProvider);
-    return LamsaNetworkBanner(
-      isOnline: network.value,
-      child: LamsaFoundationScreen(
-        audienceLabel: context.lamsa.customerApp,
-        title: context.lamsa.customerFoundationTitle,
-        message: context.lamsa.customerFoundationMessage,
-        environmentLabel: config.label,
-        items: const [
-          'واجهة عربية واتجاه RTL',
-          'نظام تصميم مشترك',
-          'اتصال API مضبوط بمهل وإلغاء',
-          'تنقل أساسي قابل للتوسع',
-        ],
+      routerConfig: router,
+      builder: (context, child) => LamsaNetworkBanner(
+        isOnline: network.value,
+        child: child ?? const SizedBox.shrink(),
       ),
     );
   }

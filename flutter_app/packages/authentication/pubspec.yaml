@@ -1,0 +1,24 @@
+name: lamsa_authentication
+description: جلسة ومصادقة حسابات تطبيقات لمسة
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_secure_storage: ^10.0.0
+  lamsa_design_system:
+    path: ../design_system
+  lamsa_localization:
+    path: ../localization
+  lamsa_networking:
+    path: ../networking
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

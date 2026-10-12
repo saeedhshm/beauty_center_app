@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 enum ApiFailureKind {
+  badRequest,
   validation,
   unauthorized,
   forbidden,
@@ -10,6 +11,8 @@ enum ApiFailureKind {
   offline,
   timeout,
   server,
+  payloadTooLarge,
+  unsupportedMedia,
   unknown,
 }
 
@@ -21,6 +24,7 @@ class ApiFailure implements Exception {
     this.statusCode,
     this.requestId,
     this.fields = const {},
+    this.retryAfterSeconds,
   });
 
   factory ApiFailure.fromDioException(DioException exception) {
@@ -78,6 +82,9 @@ class ApiFailure implements Exception {
           ? body['requestId'] as String
           : null,
       fields: fields,
+      retryAfterSeconds: int.tryParse(
+        response?.headers.value('retry-after') ?? '',
+      ),
     );
   }
 
@@ -87,15 +94,19 @@ class ApiFailure implements Exception {
   final int? statusCode;
   final String? requestId;
   final Map<String, List<String>> fields;
+  final int? retryAfterSeconds;
 
   static ApiFailureKind _kindFor(int? status) => switch (status) {
+    400 => ApiFailureKind.badRequest,
     401 => ApiFailureKind.unauthorized,
     403 => ApiFailureKind.forbidden,
     404 => ApiFailureKind.notFound,
     409 => ApiFailureKind.conflict,
     422 => ApiFailureKind.validation,
     429 => ApiFailureKind.rateLimited,
-        int value when value >= 500 => ApiFailureKind.server,
+    413 => ApiFailureKind.payloadTooLarge,
+    415 => ApiFailureKind.unsupportedMedia,
+    int value when value >= 500 => ApiFailureKind.server,
     _ => ApiFailureKind.unknown,
   };
 
