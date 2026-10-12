@@ -114,11 +114,12 @@ body { min-width: 320px; }
 }
 
 /* D6 accessibility: visible keyboard focus everywhere, and a skip link that
-   appears only when focused so mouse users never see it. */
+   appears only when focused so mouse users never see it. The `a` prefix beats
+   MUI Button runtime styles so the link stays hidden until focused. */
 :focus-visible { outline: 3px solid #b86592; outline-offset: 2px; border-radius: 4px; }
-.skip-link {
+a.skip-link {
   position: fixed; top: -100px; inset-inline-start: 16px; z-index: 2000;
   background: #53203f; color: #fffaf6 !important; padding: 10px 18px; border-radius: 10px;
   font-weight: 800; text-decoration: none; transition: top .15s ease;
 }
-.skip-link:focus-visible { top: 12px; color: #fffaf6 !important; }
+a.skip-link:focus-visible { top: 12px; color: #fffaf6 !important; }
