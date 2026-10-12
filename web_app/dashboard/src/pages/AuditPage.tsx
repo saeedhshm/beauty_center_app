@@ -7,6 +7,7 @@ import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { auditResourcePath, listAuditLogs } from '../api/audit';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
 import { formatDateTime } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 const PAGE_SIZE = 20;
 
@@ -29,6 +30,7 @@ function DetailsCell({ details }: { details: unknown }) {
 }
 
 export function AuditPage() {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
   const action = searchParams.get('action') ?? '';
@@ -64,41 +66,41 @@ export function AuditPage() {
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
-      <PageHeader title="سجل التدقيق" subtitle="قراءة فقط؛ كل أمر إداري حساس مسجل بفاعله ومورده ووقته." />
+      <PageHeader title={t('سجل التدقيق')} subtitle={t('قراءة فقط؛ كل أمر إداري حساس مسجل بفاعله ومورده ووقته.')} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
-        <TextField label="الإجراء" defaultValue={action} sx={{ minWidth: 180 }}
+        <TextField label={t('الإجراء')} defaultValue={action} sx={{ minWidth: 180 }}
           onBlur={(event) => applyText('action', event.target.value.trim())}
           onKeyDown={(event) => { if (event.key === 'Enter') applyText('action', (event.target as HTMLInputElement).value.trim()); }} />
         <FormControl sx={{ minWidth: 180 }}>
-          <InputLabel id="resource-filter-label">نوع المورد</InputLabel>
-          <Select labelId="resource-filter-label" label="نوع المورد" value={resourceType}
+          <InputLabel id="resource-filter-label">{t('نوع المورد')}</InputLabel>
+          <Select labelId="resource-filter-label" label={t('نوع المورد')} value={resourceType}
             onChange={(event) => update({ resourceType: event.target.value, page: 1 })}>
-            <MenuItem value="">الكل</MenuItem>
+            <MenuItem value="">{t('الكل')}</MenuItem>
             {['user', 'expert', 'booking', 'payment', 'payout', 'service', 'settings', 'city'].map((type) => (
               <MenuItem key={type} value={type}>{type}</MenuItem>
             ))}
           </Select>
         </FormControl>
-        <TextField label="معرف الفاعل" defaultValue={actorId} sx={{ minWidth: 220 }}
+        <TextField label={t('معرف الفاعل')} defaultValue={actorId} sx={{ minWidth: 220 }}
           slotProps={{ htmlInput: { dir: 'ltr' } }}
           onBlur={(event) => applyText('actorId', event.target.value.trim())}
           onKeyDown={(event) => { if (event.key === 'Enter') applyText('actorId', (event.target as HTMLInputElement).value.trim()); }} />
       </Stack>
-      {query.isLoading && <LoadingState label="جارٍ تحميل السجل" />}
+      {query.isLoading && <LoadingState label={t('جارٍ تحميل السجل')} />}
       {query.error && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {query.data && query.data.items.length === 0 && (
-        <EmptyState title="لا توجد سجلات بهذه الفلاتر" hint="وسّعي الفلاتر أو نفّذي إجراءً إداريًا أولًا." />
+        <EmptyState title={t('لا توجد سجلات بهذه الفلاتر')} hint={t('وسّعي الفلاتر أو نفّذي إجراءً إداريًا أولًا.')} />
       )}
       {query.data && query.data.items.length > 0 && (
         <Paper elevation={0}>
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table aria-label="سجل التدقيق">
+            <Table aria-label={t('سجل التدقيق')}>
               <TableHead>
                 <TableRow>
-                  <TableCell>الوقت</TableCell>
-                  <TableCell>الإجراء</TableCell>
-                  <TableCell>المورد</TableCell>
-                  <TableCell>التفاصيل</TableCell>
+                  <TableCell>{t('الوقت')}</TableCell>
+                  <TableCell>{t('الإجراء')}</TableCell>
+                  <TableCell>{t('المورد')}</TableCell>
+                  <TableCell>{t('التفاصيل')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -114,7 +116,7 @@ export function AuditPage() {
                       <TableCell>
                         <Typography variant="body2" dir="ltr" sx={{ textAlign: 'right' }}>{row.resourceType}</Typography>
                         {path ? (
-                          <Button size="small" component={RouterLink} to={path}>فتح المورد</Button>
+                           <Button size="small" component={RouterLink} to={path}>{t('فتح المورد')}</Button>
                         ) : (
                           <Typography variant="caption" color="text.secondary" dir="ltr" sx={{ display: 'block', textAlign: 'right' }}>{row.resourceId.slice(0, 8)}</Typography>
                         )}
@@ -127,15 +129,15 @@ export function AuditPage() {
             </Table>
           </TableContainer>
           <Stack direction="row" spacing={1} sx={{ p: 2, justifyContent: 'flex-start' }}>
-            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>السابق</Button>
-            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">صفحة {page}</Typography>
-            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>التالي</Button>
+            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>{t('السابق')}</Button>
+            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">{t('صفحة {{page}}', { page })}</Typography>
+            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>{t('التالي')}</Button>
           </Stack>
         </Paper>
       )}
       <Box sx={{ mt: 2 }}>
         <Typography variant="caption" color="text.secondary">
-          الاسترجاع المالي والإلغاء الإداري والتحويلات وتعطيل الحسابات تظهر هنا بأفعالها المسماة.
+          {t('الاسترجاع المالي والإلغاء الإداري والتحويلات وتعطيل الحسابات تظهر هنا بأفعالها المسماة.')}
         </Typography>
       </Box>
     </Container>

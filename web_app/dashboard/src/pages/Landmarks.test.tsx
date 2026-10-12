@@ -6,6 +6,7 @@ import { AuthContext } from '../auth/auth-context';
 import { DashboardShell } from '../layout/DashboardShell';
 import { OverviewPage } from './OverviewPage';
 import { json } from '../test/http-stub';
+import { I18nProvider } from '../i18n/i18n';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -24,6 +25,7 @@ describe('Dashboard landmarks (mocked API responses, labeled)', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
+        <I18nProvider initialLocale="ar">
         <AuthContext value={{
           status: 'authenticated',
           user: { id: 'admin', name: 'مديرة الاختبار', phone: '+201000000000', role: 'admin', phoneVerified: true },
@@ -38,6 +40,7 @@ describe('Dashboard landmarks (mocked API responses, labeled)', () => {
             </Routes>
           </MemoryRouter>
         </AuthContext>,
+        </I18nProvider>
       </QueryClientProvider>,
     );
     const skip = screen.getByRole('link', { name: 'تخطَّ إلى المحتوى الرئيسي' });

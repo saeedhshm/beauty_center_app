@@ -7,4 +7,5 @@ afterEach(() => {
   cleanup();
   clearSession();
   window.sessionStorage.clear();
+  window.localStorage.clear();
 });

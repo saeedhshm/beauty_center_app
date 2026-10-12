@@ -59,7 +59,7 @@ body { min-width: 320px; }
 }
 
 .brand-mark { width: 68px; height: 68px; font-size: 2rem; }
-.sidebar-logo { width: 43px; height: 43px; font-size: 1.35rem; }
+.sidebar-logo { width: 43px; height: 43px; font-size: 1.35rem; object-fit: cover; }
 
 .market-stamp { margin-top: 28px; flex-wrap: wrap; }
 .market-stamp span {
@@ -82,7 +82,7 @@ body { min-width: 320px; }
 .sidebar-link { min-height: 50px; margin-bottom: 5px !important; border-radius: 12px !important; color: rgba(255,250,246,.68) !important; }
 .sidebar-link .MuiListItemIcon-root { min-width: 42px; color: inherit; }
 .sidebar-link.active { color: #fffaf6 !important; background: rgba(239,189,145,.15) !important; }
-.sidebar-link.active::before { content: ''; width: 3px; height: 24px; margin-left: 10px; border-radius: 4px; background: #efbd91; }
+.sidebar-link.active::before { content: ''; width: 3px; height: 24px; margin-inline-end: 10px; border-radius: 4px; background: #efbd91; }
 .sidebar-link.Mui-disabled { color: rgba(255,250,246,.3) !important; }
 .soon-chip { height: 20px !important; color: rgba(255,250,246,.46) !important; background: rgba(255,255,255,.06) !important; font-size: .62rem !important; }
 

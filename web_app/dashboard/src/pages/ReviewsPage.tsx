@@ -7,19 +7,22 @@ import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { listReviews } from '../api/reviews';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
 import { formatDateTime } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 const PAGE_SIZE = 20;
 const RATINGS = [5, 4, 3, 2, 1];
 
 function Stars({ value }: { value: number }) {
+  const { t } = useI18n();
   return (
-    <Typography aria-label={`التقييم ${value} من 5`} sx={{ letterSpacing: 2 }}>
+    <Typography aria-label={t('التقييم {{value}} من 5', { value })} sx={{ letterSpacing: 2 }}>
       {'★'.repeat(value)}{'☆'.repeat(5 - value)}
     </Typography>
   );
 }
 
 export function ReviewsPage() {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
   const bookingId = searchParams.get('bookingId') ?? '';
@@ -51,10 +54,10 @@ export function ReviewsPage() {
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
-      <PageHeader title="التقييمات" subtitle="قراءة فقط؛ لا تعديل ولا حذف من اللوحة." />
+      <PageHeader title={t('التقييمات')} subtitle={t('قراءة فقط؛ لا تعديل ولا حذف من اللوحة.')} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <TextField
-          label="معرف الحجز"
+          label={t('معرف الحجز')}
           defaultValue={bookingId}
           onBlur={(event) => update({ bookingId: event.target.value.trim(), page: 1 })}
           onKeyDown={(event) => {
@@ -64,7 +67,7 @@ export function ReviewsPage() {
           sx={{ minWidth: 220 }}
         />
         <TextField
-          label="معرف المُقيَّم"
+          label={t('معرف المُقيَّم')}
           defaultValue={revieweeId}
           onBlur={(event) => update({ revieweeId: event.target.value.trim(), page: 1 })}
           onKeyDown={(event) => {
@@ -74,35 +77,35 @@ export function ReviewsPage() {
           sx={{ minWidth: 220 }}
         />
         <FormControl sx={{ minWidth: 140 }}>
-          <InputLabel id="rating-filter-label">الدرجة</InputLabel>
+          <InputLabel id="rating-filter-label">{t('الدرجة')}</InputLabel>
           <Select
             labelId="rating-filter-label"
-            label="الدرجة"
+            label={t('الدرجة')}
             value={ratingParam ?? ''}
             onChange={(event) => update({ rating: event.target.value, page: 1 })}
           >
-            <MenuItem value="">الكل</MenuItem>
+            <MenuItem value="">{t('الكل')}</MenuItem>
             {RATINGS.map((value) => (
-              <MenuItem key={value} value={String(value)}>{value} نجوم</MenuItem>
+              <MenuItem key={value} value={String(value)}>{t('{{value}} نجوم', { value })}</MenuItem>
             ))}
           </Select>
         </FormControl>
       </Stack>
-      {query.isLoading && <LoadingState label="جارٍ تحميل التقييمات" />}
+      {query.isLoading && <LoadingState label={t('جارٍ تحميل التقييمات')} />}
       {query.error && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {query.data && query.data.items.length === 0 && (
-        <EmptyState title="لا توجد تقييمات بهذه الفلاتر" hint="غيّري الفلاتر أو انتظري اكتمال حجوزات جديدة." />
+        <EmptyState title={t('لا توجد تقييمات بهذه الفلاتر')} hint={t('غيّري الفلاتر أو انتظري اكتمال حجوزات جديدة.')} />
       )}
       {query.data && query.data.items.length > 0 && (
         <Paper elevation={0}>
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table aria-label="قائمة التقييمات">
+            <Table aria-label={t('قائمة التقييمات')}>
               <TableHead>
                 <TableRow>
-                  <TableCell>الدرجة</TableCell>
-                  <TableCell>الأطراف</TableCell>
-                  <TableCell>التعليق</TableCell>
-                  <TableCell>التاريخ</TableCell>
+                  <TableCell>{t('الدرجة')}</TableCell>
+                  <TableCell>{t('الأطراف')}</TableCell>
+                  <TableCell>{t('التعليق')}</TableCell>
+                  <TableCell>{t('التاريخ')}</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -117,7 +120,7 @@ export function ReviewsPage() {
                     <TableCell sx={{ maxWidth: 320 }}>{review.comment ?? '—'}</TableCell>
                     <TableCell>{formatDateTime(review.createdAt)}</TableCell>
                     <TableCell align="left">
-                      <Button size="small" component={RouterLink} to={`/bookings/${review.bookingId}`}>الحجز</Button>
+                      <Button size="small" component={RouterLink} to={`/bookings/${review.bookingId}`}>{t('الحجز')}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -125,15 +128,15 @@ export function ReviewsPage() {
             </Table>
           </TableContainer>
           <Stack direction="row" spacing={1} sx={{ p: 2, justifyContent: 'flex-start' }}>
-            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>السابق</Button>
-            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">صفحة {page}</Typography>
-            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>التالي</Button>
+            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>{t('السابق')}</Button>
+            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">{t('صفحة {{page}}', { page })}</Typography>
+            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>{t('التالي')}</Button>
           </Stack>
         </Paper>
       )}
       <Box sx={{ mt: 2 }}>
         <Typography variant="caption" color="text.secondary">
-          التقييمات للقراءة والمراجعة فقط؛ أي إجراء moderation يحتاج سياسة وAPI معتمدين.
+          {t('التقييمات للقراءة والمراجعة فقط؛ أي إجراء moderation يحتاج سياسة وAPI معتمدين.')}
         </Typography>
       </Box>
     </Container>

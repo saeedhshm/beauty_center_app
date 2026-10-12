@@ -7,10 +7,12 @@ import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import { listPayouts } from '../api/payouts';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
 import { formatDateTime, formatMoney } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 const PAGE_SIZE = 20;
 
 export function PayoutsPage() {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
   const expertId = searchParams.get('expertId') ?? '';
@@ -39,43 +41,43 @@ export function PayoutsPage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
       <PageHeader
-        title="المستحقات والتحويلات"
-        subtitle="المبالغ محسوبة على الخادم. التسجيل اليدوي توثيق تشغيلي وليس تحويلًا مصرفيًا آليًا."
-        actions={<Button component={RouterLink} to="/payouts/new">تحويل جديد</Button>}
+        title={t('المستحقات والتحويلات')}
+        subtitle={t('المبالغ محسوبة على الخادم. التسجيل اليدوي توثيق تشغيلي وليس تحويلًا مصرفيًا آليًا.')}
+        actions={<Button component={RouterLink} to="/payouts/new">{t('تحويل جديد')}</Button>}
       />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <FormControl sx={{ minWidth: 180 }}>
-          <InputLabel id="transfer-filter-label">التحويل</InputLabel>
+          <InputLabel id="transfer-filter-label">{t('التحويل')}</InputLabel>
           <Select
             labelId="transfer-filter-label"
-            label="التحويل"
+            label={t('التحويل')}
             value={transferredParam ?? ''}
             onChange={(event) => {
               const value = event.target.value;
               update({ transferred: value === '' ? 'all' : value === 'true', page: 1 });
             }}
           >
-            <MenuItem value="">الكل</MenuItem>
-            <MenuItem value="true">محوّلة</MenuItem>
-            <MenuItem value="false">مسجلة بانتظار التحويل</MenuItem>
+            <MenuItem value="">{t('الكل')}</MenuItem>
+            <MenuItem value="true">{t('محوّلة')}</MenuItem>
+            <MenuItem value="false">{t('مسجلة بانتظار التحويل')}</MenuItem>
           </Select>
         </FormControl>
       </Stack>
-      {query.isLoading && <LoadingState label="جارٍ تحميل التحويلات" />}
+      {query.isLoading && <LoadingState label={t('جارٍ تحميل التحويلات')} />}
       {query.error && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {query.data && query.data.items.length === 0 && (
-        <EmptyState title="لا توجد تحويلات بهذا الفلتر" hint="أنشئي تحويلًا من الحجوزات المؤهلة." />
+        <EmptyState title={t('لا توجد تحويلات بهذا الفلتر')} hint={t('أنشئي تحويلًا من الحجوزات المؤهلة.')} />
       )}
       {query.data && query.data.items.length > 0 && (
         <Paper elevation={0}>
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table aria-label="قائمة التحويلات">
+            <Table aria-label={t('قائمة التحويلات')}>
               <TableHead>
                 <TableRow>
-                  <TableCell>المبلغ</TableCell>
-                  <TableCell>الحالة</TableCell>
-                  <TableCell>المرجع</TableCell>
-                  <TableCell>التاريخ</TableCell>
+                  <TableCell>{t('المبلغ')}</TableCell>
+                  <TableCell>{t('الحالة')}</TableCell>
+                  <TableCell>{t('المرجع')}</TableCell>
+                  <TableCell>{t('التاريخ')}</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -87,12 +89,12 @@ export function PayoutsPage() {
                       <Typography variant="caption" color="text.secondary">#{payout.id.slice(0, 8)}</Typography>
                     </TableCell>
                     <TableCell>
-                      <Chip size="small" color={payout.transferredAt ? 'success' : 'warning'} label={payout.transferredAt ? 'محوّلة' : 'مسجلة'} />
+                      <Chip size="small" color={payout.transferredAt ? 'success' : 'warning'} label={payout.transferredAt ? t('محوّلة') : t('مسجلة')} />
                     </TableCell>
                     <TableCell dir="ltr" sx={{ textAlign: 'right' }}>{payout.transferRef ?? '—'}</TableCell>
                     <TableCell>{formatDateTime(payout.transferredAt ?? payout.createdAt)}</TableCell>
                     <TableCell align="left">
-                      <Button size="small" component={RouterLink} to={`/payouts/${payout.id}`}>التفاصيل</Button>
+                      <Button size="small" component={RouterLink} to={`/payouts/${payout.id}`}>{t('التفاصيل')}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -100,9 +102,9 @@ export function PayoutsPage() {
             </Table>
           </TableContainer>
           <Stack direction="row" spacing={1} sx={{ p: 2, justifyContent: 'flex-start' }}>
-            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>السابق</Button>
-            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">صفحة {page}</Typography>
-            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>التالي</Button>
+            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>{t('السابق')}</Button>
+            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">{t('صفحة {{page}}', { page })}</Typography>
+            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>{t('التالي')}</Button>
           </Stack>
         </Paper>
       )}

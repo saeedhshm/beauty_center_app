@@ -19,31 +19,32 @@ import {
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/auth-context';
+import { useI18n } from '../i18n/i18n';
 
 const drawerWidth = 280;
-const active = [
-  { label: 'الملخص', to: '/overview', icon: <ShowChartOutlined /> },
-  { label: 'الخبيرات', to: '/experts', icon: <PersonSearchOutlined /> },
-  { label: 'الخدمات', to: '/services', icon: <SpaOutlined /> },
-  { label: 'الحجوزات', to: '/bookings', icon: <CalendarMonthOutlined /> },
-  { label: 'الحسابات', to: '/users', icon: <GroupOutlined /> },
-  { label: 'التقييمات', to: '/reviews', icon: <StarRateOutlined /> },
-  { label: 'سجل التدقيق', to: '/audit', icon: <AssignmentOutlined /> },
-  { label: 'المدفوعات', to: '/payments', icon: <PaymentsOutlined /> },
-  { label: 'المستحقات', to: '/payouts', icon: <AccountBalanceOutlined /> },
-  { label: 'التشغيل', to: '/operations', icon: <MonitorHeartOutlined /> },
-  { label: 'الإعدادات', to: '/settings', icon: <SettingsOutlined /> },
-];
-
 function Navigation({ close }: { close: () => void }) {
+  const { t } = useI18n();
+  const active = [
+    { label: t('الملخص'), to: '/overview', icon: <ShowChartOutlined /> },
+    { label: t('الخبيرات'), to: '/experts', icon: <PersonSearchOutlined /> },
+    { label: t('الخدمات'), to: '/services', icon: <SpaOutlined /> },
+    { label: t('الحجوزات'), to: '/bookings', icon: <CalendarMonthOutlined /> },
+    { label: t('الحسابات'), to: '/users', icon: <GroupOutlined /> },
+    { label: t('التقييمات'), to: '/reviews', icon: <StarRateOutlined /> },
+    { label: t('سجل التدقيق'), to: '/audit', icon: <AssignmentOutlined /> },
+    { label: t('المدفوعات'), to: '/payments', icon: <PaymentsOutlined /> },
+    { label: t('المستحقات'), to: '/payouts', icon: <AccountBalanceOutlined /> },
+    { label: t('التشغيل'), to: '/operations', icon: <MonitorHeartOutlined /> },
+    { label: t('الإعدادات'), to: '/settings', icon: <SettingsOutlined /> },
+  ];
   return (
     <Box className="sidebar-content">
       <Box sx={{ px: 3, pt: 3.5, pb: 3 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-          <Box className="sidebar-logo">ل</Box>
+          <Box component="img" src="/lamsa_icon.png" alt={t('شعار لمسة')} className="sidebar-logo" />
           <Box>
-            <Typography sx={{ color: '#fffaf6', fontWeight: 800, fontSize: '1.25rem' }}>لمسة</Typography>
-            <Typography sx={{ color: 'rgba(255,250,246,.55)', fontSize: '.75rem' }}>مركز العمليات</Typography>
+            <Typography sx={{ color: '#fffaf6', fontWeight: 800, fontSize: '1.25rem' }}>{t('لمسة')}</Typography>
+            <Typography sx={{ color: 'rgba(255,250,246,.55)', fontSize: '.75rem' }}>{t('مركز العمليات')}</Typography>
           </Box>
         </Stack>
       </Box>
@@ -51,7 +52,7 @@ function Navigation({ close }: { close: () => void }) {
       <List sx={{ px: 1.5, pt: 2 }}>
         <ListItemButton component={NavLink} to="/" end onClick={close} className="sidebar-link">
           <ListItemIcon><DashboardOutlined /></ListItemIcon>
-          <ListItemText primary="نظرة عامة" />
+          <ListItemText primary={t('نظرة عامة')} />
         </ListItemButton>
         {active.map((item) => (
           <ListItemButton key={item.label} component={NavLink} to={item.to} onClick={close} className="sidebar-link">
@@ -62,7 +63,7 @@ function Navigation({ close }: { close: () => void }) {
       </List>
       <Box sx={{ mt: 'auto', p: 2.5 }}>
         <Typography sx={{ color: 'rgba(255,250,246,.62)', fontSize: '.72rem', lineHeight: 1.7 }}>
-          بيئة العرض التجريبية<br />لا توجد معاملات مالية حقيقية
+          {t('بيئة العرض التجريبية\nلا توجد معاملات مالية حقيقية').split('\n').map((line) => <span key={line}>{line}<br /></span>)}
         </Typography>
       </Box>
     </Box>
@@ -71,37 +72,39 @@ function Navigation({ close }: { close: () => void }) {
 
 export function DashboardShell() {
   const auth = useAuth();
+  const { direction, t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
   const initial = auth.user?.name.trim().charAt(0) || 'م';
 
   return (
     <Box sx={{ minHeight: '100dvh', display: 'flex' }}>
-      <Button href="#main-content" className="skip-link">تخطَّ إلى المحتوى الرئيسي</Button>
-      <AppBar position="fixed" color="transparent" elevation={0} className="dashboard-appbar" sx={{ width: { lg: `calc(100% - ${drawerWidth}px)` }, mr: { lg: `${drawerWidth}px` } }}>
+      <Button href="#main-content" className="skip-link">{t('تخطَّ إلى المحتوى الرئيسي')}</Button>
+      <AppBar position="fixed" color="transparent" elevation={0} className="dashboard-appbar" sx={{ width: { lg: `calc(100% - ${drawerWidth}px)` }, ...(direction === 'rtl' ? { mr: { lg: `${drawerWidth}px` } } : { ml: { lg: `${drawerWidth}px` } }) }}>
         <Toolbar sx={{ minHeight: '76px !important', px: { xs: 2, md: 4 } }}>
-          <IconButton onClick={() => setMobileOpen(true)} sx={{ display: { lg: 'none' }, ml: 1 }} aria-label="فتح قائمة التنقل">
+          <IconButton onClick={() => setMobileOpen(true)} sx={{ display: { lg: 'none' }, mr: direction === 'ltr' ? 1 : 0, ml: direction === 'rtl' ? 1 : 0 }} aria-label={t('فتح قائمة التنقل')}>
             <MenuRounded />
           </IconButton>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography sx={{ fontWeight: 800 }}>لوحة الإدارة</Typography>
-            <Typography variant="caption" color="text.secondary">القاهرة · توقيت الأعمال المحلي</Typography>
+            <Typography sx={{ fontWeight: 800 }}>{t('لوحة الإدارة')}</Typography>
+            <Typography variant="caption" color="text.secondary">{t('القاهرة · توقيت الأعمال المحلي')}</Typography>
           </Box>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
             <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'left' }}>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>{auth.user?.name}</Typography>
-              <Typography variant="caption" color="text.secondary">مدير النظام</Typography>
+              <Typography variant="caption" color="text.secondary">{t('مدير النظام')}</Typography>
             </Box>
             <Avatar sx={{ bgcolor: 'primary.main', color: 'primary.contrastText' }}>{initial}</Avatar>
-            <Tooltip title="تسجيل الخروج">
-              <IconButton onClick={() => void auth.logout()} aria-label="تسجيل الخروج"><LogoutRounded /></IconButton>
+            <Tooltip title={t('تسجيل الخروج')}>
+              <IconButton onClick={() => void auth.logout()} aria-label={t('تسجيل الخروج')}><LogoutRounded /></IconButton>
             </Tooltip>
           </Stack>
         </Toolbar>
       </AppBar>
 
-      <Box component="nav" sx={{ width: { lg: drawerWidth }, flexShrink: { lg: 0 } }} aria-label="التنقل الرئيسي">
+      <Box component="nav" sx={{ width: { lg: drawerWidth }, flexShrink: { lg: 0 } }} aria-label={t('التنقل الرئيسي')}>
         <Drawer
           variant="temporary"
+          anchor={direction === 'rtl' ? 'right' : 'left'}
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
           ModalProps={{ keepMounted: true }}
@@ -111,6 +114,7 @@ export function DashboardShell() {
         </Drawer>
         <Drawer
           variant="permanent"
+          anchor={direction === 'rtl' ? 'right' : 'left'}
           open
           sx={{ display: { xs: 'none', lg: 'block' }, '& .MuiDrawer-paper': { width: drawerWidth } }}
         >

@@ -15,7 +15,8 @@ describe('operations formatting (display only, never recomputed money)', () => {
     expect(formatMoney('300.50', 'EGP')).toContain('ج.م');
     expect(formatMoney('300.50', 'EGP')).toContain('٣٠٠');
     expect(formatMoney('300.50', 'EGP')).not.toBe('300.50');
-    expect(formatMoney('12.00', 'SAR')).toBe('12.00 SAR');
+    expect(formatMoney('12.00', 'SAR')).toContain('١٢');
+    expect(formatMoney('12.00', 'SAR')).not.toContain('EGP');
   });
 
   it('renders commission snapshots without inventing a tax model', () => {

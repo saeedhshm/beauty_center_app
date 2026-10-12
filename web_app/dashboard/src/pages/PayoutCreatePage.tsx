@@ -9,8 +9,10 @@ import { ApiError } from '../api/client';
 import { createPayout, listEligibleBookings } from '../api/payouts';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
 import { describeApiError, formatDateTime, formatMoney } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 export function PayoutCreatePage() {
+  const { t } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -35,7 +37,7 @@ export function PayoutCreatePage() {
         setActionError(describeApiError(cause.code, cause.message));
         void queryClient.invalidateQueries({ queryKey: ['admin-payout-eligible', appliedExpertId] });
       } else {
-        setActionError(cause instanceof ApiError ? describeApiError(cause.code, cause.message) : 'تعذر إنشاء التحويل.');
+        setActionError(cause instanceof ApiError ? describeApiError(cause.code, cause.message) : t('تعذر إنشاء التحويل.'));
       }
     },
   });
@@ -50,7 +52,7 @@ export function PayoutCreatePage() {
   const applyExpert = () => {
     const value = expertId.trim();
     if (!/^[0-9a-fA-F-]{36}$/.test(value)) {
-      setIdError('أدخلي معرف خبيرة بصيغة UUID صحيحة.');
+      setIdError(t('أدخلي معرف خبيرة بصيغة UUID صحيحة.'));
       return;
     }
     setIdError(null);
@@ -63,40 +65,40 @@ export function PayoutCreatePage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
       <PageHeader
-        title="تحويل جديد"
-        subtitle="من الحجوزات المكتملة مدفوعة الأجر غير المربوطة فقط، وبعملة واحدة."
-        actions={<Button component={RouterLink} to="/payouts">عودة إلى القائمة</Button>}
+        title={t('تحويل جديد')}
+        subtitle={t('من الحجوزات المكتملة مدفوعة الأجر غير المربوطة فقط، وبعملة واحدة.')}
+        actions={<Button component={RouterLink} to="/payouts">{t('عودة إلى القائمة')}</Button>}
       />
       <Paper elevation={0} sx={{ p: 3, mb: 3 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ alignItems: { sm: 'flex-end' } }}>
           <TextField
-            label="معرف الخبيرة"
+             label={t('معرف الخبيرة')}
             value={expertId}
             onChange={(event) => setExpertId(event.target.value)}
             slotProps={{ htmlInput: { dir: 'ltr' } }}
             error={Boolean(idError)}
-            helperText={idError ?? 'الصقي المعرف من ملف الخبيرة.'}
+             helperText={idError ?? t('الصقي المعرف من ملف الخبيرة.')}
             sx={{ minWidth: 300 }}
           />
-          <Button variant="contained" onClick={applyExpert}>عرض المؤهلة</Button>
+           <Button variant="contained" onClick={applyExpert}>{t('عرض المؤهلة')}</Button>
         </Stack>
       </Paper>
       {actionError && <Alert severity="warning" onClose={() => setActionError(null)} sx={{ mb: 2 }}>{actionError}</Alert>}
-      {appliedExpertId !== '' && query.isLoading && <LoadingState label="جارٍ تحميل الحجوزات المؤهلة" />}
+       {appliedExpertId !== '' && query.isLoading && <LoadingState label={t('جارٍ تحميل الحجوزات المؤهلة')} />}
       {appliedExpertId !== '' && query.error && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {query.data && query.data.bookings.length === 0 && (
-        <EmptyState title="لا توجد حجوزات مؤهلة لهذه الخبيرة" hint="الأهلية: مكتملة ومدفوعة وغير مربوطة بتحويل سابق." />
+         <EmptyState title={t('لا توجد حجوزات مؤهلة لهذه الخبيرة')} hint={t('الأهلية: مكتملة ومدفوعة وغير مربوطة بتحويل سابق.')} />
       )}
       {query.data && query.data.bookings.length > 0 && (
         <Paper elevation={0}>
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table aria-label="الحجوزات المؤهلة للتحويل">
+             <Table aria-label={t('الحجوزات المؤهلة للتحويل')}>
               <TableHead>
                 <TableRow>
                   <TableCell />
-                  <TableCell>الحجز</TableCell>
-                  <TableCell>الموعد</TableCell>
-                  <TableCell>مستحق الخبيرة</TableCell>
+                   <TableCell>{t('الحجز')}</TableCell>
+                   <TableCell>{t('الموعد')}</TableCell>
+                   <TableCell>{t('مستحق الخبيرة')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -106,7 +108,7 @@ export function PayoutCreatePage() {
                       <Checkbox
                         checked={selected.has(booking.id)}
                         onChange={() => toggle(booking.id)}
-                        slotProps={{ input: { 'aria-label': `اختيار الحجز ${booking.id.slice(0, 8)}` } }}
+                         slotProps={{ input: { 'aria-label': t('اختيار الحجز {{id}}', { id: booking.id.slice(0, 8) }) } }}
                       />
                     </TableCell>
                     <TableCell>
@@ -120,20 +122,20 @@ export function PayoutCreatePage() {
             </Table>
           </TableContainer>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ p: 2, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-            <Typography aria-live="polite">المحدد: {selected.size} من {query.data.bookings.length}</Typography>
+             <Typography aria-live="polite">{t('المحدد: {{selected}} من {{total}}', { selected: selected.size, total: query.data.bookings.length })}</Typography>
             <Button
               variant="contained"
               disabled={selected.size === 0 || mutation.isPending}
               onClick={() => mutation.mutate()}
             >
-              إنشاء التحويل بالمحدد
+               {t('إنشاء التحويل بالمحدد')}
             </Button>
           </Stack>
         </Paper>
       )}
       <Box sx={{ mt: 2 }}>
         <Typography variant="caption" color="text.secondary">
-          المبلغ النهائي يحسبه الخادم كمجموع المستحقات؛ لا تُدخل الواجهة أي مبلغ.
+           {t('المبلغ النهائي يحسبه الخادم كمجموع المستحقات؛ لا تُدخل الواجهة أي مبلغ.')}
         </Typography>
       </Box>
     </Container>

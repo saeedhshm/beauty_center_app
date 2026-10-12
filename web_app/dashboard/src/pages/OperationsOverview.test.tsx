@@ -77,7 +77,7 @@ describe('Overview and operations flow (mocked API responses, labeled)', () => {
       </RouterShell>,
     );
     expect(await screen.findByText('الحجوزات حسب الحالة')).toBeInTheDocument();
-    expect(screen.getByText('confirmed: 4')).toBeInTheDocument();
+    expect(screen.getByText('مؤكد مدفوع: 4')).toBeInTheDocument();
     expect(screen.getByText(/التحصيل المعروض إجمالي محصّل/)).toBeInTheDocument();
     expect(screen.getByText(/آخر دورة ناجحة/)).toBeInTheDocument();
   });
@@ -108,6 +108,6 @@ describe('Overview and operations flow (mocked API responses, labeled)', () => {
     await user.click(screen.getByRole('button', { name: 'إعادة المحاولة' }));
     await waitFor(() => expect(screen.getByText('لا توجد تسليمات فاشلة')).toBeInTheDocument());
     expect(screen.getByText('المدفوعات المتأخرة')).toBeInTheDocument();
-    expect(await screen.findByText('cancelled')).toBeInTheDocument();
+    expect(await screen.findByText('ملغي')).toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { ProtectedRoute } from '../auth/ProtectedRoute';
 import { AppErrorBoundary } from '../components/AppErrorBoundary';
 import { AppProviders } from './AppProviders';
+import { useI18n } from '../i18n/i18n';
 
 const LoginPage = lazy(() => import('../auth/LoginPage').then((module) => ({ default: module.LoginPage })));
 const DashboardShell = lazy(() => import('../layout/DashboardShell').then((module) => ({ default: module.DashboardShell })));
@@ -28,9 +29,10 @@ const OperationsPage = lazy(() => import('../pages/OperationsPage').then((module
 const SettingsPage = lazy(() => import('../pages/SettingsPage').then((module) => ({ default: module.SettingsPage })));
 
 function RouteFallback() {
+  const { t } = useI18n();
   return (
     <Box sx={{ minHeight: '100dvh', display: 'grid', placeItems: 'center' }}>
-      <CircularProgress aria-label="جارٍ تحميل الصفحة" />
+      <CircularProgress aria-label={t('جارٍ تحميل الصفحة')} />
     </Box>
   );
 }

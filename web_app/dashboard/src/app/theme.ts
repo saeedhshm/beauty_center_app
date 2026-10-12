@@ -1,7 +1,9 @@
 import { createTheme } from '@mui/material/styles';
+import type { Direction } from '../i18n/i18n';
 
-export const theme = createTheme({
-  direction: 'rtl',
+export function createAppTheme(direction: Direction) {
+  return createTheme({
+  direction,
   palette: {
     mode: 'light',
     primary: { main: '#7b315f', dark: '#53203f', light: '#b86592', contrastText: '#fffaf6' },
@@ -32,4 +34,5 @@ export const theme = createTheme({
       defaultProps: { fullWidth: true },
     },
   },
-});
+  });
+}

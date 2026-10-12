@@ -8,24 +8,19 @@ import { listBookings } from '../api/bookings';
 import type { BookingStatus } from '../api/types';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
 import { BOOKING_STATUS_LABELS, bookingStatusTone, formatDateTime, formatMoney } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 const PAGE_SIZE = 20;
-const FILTERS: Array<{ value: BookingStatus | 'all'; label: string }> = [
-  { value: 'all', label: 'الكل' },
-  { value: 'pending', label: BOOKING_STATUS_LABELS.pending },
-  { value: 'accepted', label: BOOKING_STATUS_LABELS.accepted },
-  { value: 'confirmed', label: BOOKING_STATUS_LABELS.confirmed },
-  { value: 'completed', label: BOOKING_STATUS_LABELS.completed },
-  { value: 'rejected', label: BOOKING_STATUS_LABELS.rejected },
-  { value: 'cancelled', label: BOOKING_STATUS_LABELS.cancelled },
-  { value: 'expired', label: BOOKING_STATUS_LABELS.expired },
-];
-
 export function BookingsPage() {
+  const { t } = useI18n();
+  const filters: Array<{ value: BookingStatus | 'all'; label: string }> = [
+    { value: 'all', label: t('الكل') },
+    ...(['pending', 'accepted', 'confirmed', 'completed', 'rejected', 'cancelled', 'expired'] as BookingStatus[]).map((value) => ({ value, label: BOOKING_STATUS_LABELS[value] })),
+  ];
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Math.max(1, Number(searchParams.get('page') ?? 1) || 1);
   const statusParam = searchParams.get('status');
-  const status: BookingStatus | 'all' = FILTERS.some((option) => option.value === statusParam)
+  const status: BookingStatus | 'all' = filters.some((option) => option.value === statusParam)
     ? (statusParam as BookingStatus)
     : 'all';
   const query = useQuery({
@@ -43,36 +38,36 @@ export function BookingsPage() {
 
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
-      <PageHeader title="الحجوزات" subtitle="الحالات واللقطات التاريخية كما حفظها الخادم، دون إعادة حساب." />
+      <PageHeader title={t('الحجوزات')} subtitle={t('الحالات واللقطات التاريخية كما حفظها الخادم، دون إعادة حساب.')} />
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <FormControl sx={{ minWidth: 220 }}>
-          <InputLabel id="booking-status-label">الحالة</InputLabel>
+          <InputLabel id="booking-status-label">{t('الحالة')}</InputLabel>
           <Select
             labelId="booking-status-label"
-            label="الحالة"
+            label={t('الحالة')}
             value={status}
             onChange={(event) => update({ status: event.target.value as BookingStatus | 'all', page: 1 })}
           >
-            {FILTERS.map((option) => (
+            {filters.map((option) => (
               <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
             ))}
           </Select>
         </FormControl>
       </Stack>
-      {query.isLoading && <LoadingState label="جارٍ تحميل الحجوزات" />}
+      {query.isLoading && <LoadingState label={t('جارٍ تحميل الحجوزات')} />}
       {query.error && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {query.data && query.data.items.length === 0 && (
-        <EmptyState title="لا توجد حجوزات بهذا الفلتر" hint="غيّري الحالة أو انتظري حجوزات جديدة." />
+        <EmptyState title={t('لا توجد حجوزات بهذا الفلتر')} hint={t('غيّري الحالة أو انتظري حجوزات جديدة.')} />
       )}
       {query.data && query.data.items.length > 0 && (
         <Paper elevation={0}>
           <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table aria-label="قائمة الحجوزات">
+            <Table aria-label={t('قائمة الحجوزات')}>
               <TableHead>
                 <TableRow>
-                  <TableCell>الموعد</TableCell>
-                  <TableCell>الحالة</TableCell>
-                  <TableCell>الإجمالي</TableCell>
+                  <TableCell>{t('الموعد')}</TableCell>
+                  <TableCell>{t('الحالة')}</TableCell>
+                  <TableCell>{t('الإجمالي')}</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
@@ -88,7 +83,7 @@ export function BookingsPage() {
                     </TableCell>
                     <TableCell>{formatMoney(booking.totalAmount, booking.currency)}</TableCell>
                     <TableCell align="left">
-                      <Button size="small" component={RouterLink} to={`/bookings/${booking.id}`}>التفاصيل</Button>
+                      <Button size="small" component={RouterLink} to={`/bookings/${booking.id}`}>{t('التفاصيل')}</Button>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -96,15 +91,15 @@ export function BookingsPage() {
             </Table>
           </TableContainer>
           <Stack direction="row" spacing={1} sx={{ p: 2, justifyContent: 'flex-start' }}>
-            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>السابق</Button>
-            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">صفحة {page}</Typography>
-            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>التالي</Button>
+            <Button disabled={page <= 1} onClick={() => update({ page: page - 1 })}>{t('السابق')}</Button>
+            <Typography sx={{ alignSelf: 'center' }} aria-live="polite">{t('صفحة {{page}}', { page })}</Typography>
+            <Button disabled={!query.data.pagination.hasNext} onClick={() => update({ page: page + 1 })}>{t('التالي')}</Button>
           </Stack>
         </Paper>
       )}
       <Box sx={{ mt: 2 }}>
         <Typography variant="caption" color="text.secondary">
-          المبالغ والعملة والتوقيت لقطات تاريخية من الخادم ولا تُعاد حسابها هنا.
+          {t('المبالغ والعملة والتوقيت لقطات تاريخية من الخادم ولا تُعاد حسابها هنا.')}
         </Typography>
       </Box>
     </Container>

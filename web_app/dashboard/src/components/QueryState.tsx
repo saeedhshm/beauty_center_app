@@ -2,6 +2,7 @@ import { Alert, Box, Button, CircularProgress, Paper, Typography } from '@mui/ma
 import type { ReactNode } from 'react';
 import { ApiError } from '../api/client';
 import { describeApiError, isConflictCode } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 export function LoadingState({ label }: { label: string }) {
   return (
@@ -22,19 +23,20 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useI18n();
   const code = error instanceof ApiError ? error.code : undefined;
-  const message = error instanceof ApiError ? describeApiError(code, error.message) : 'تعذر الاتصال بالخادم. تحقّقي من الشبكة ثم حاولي مجددًا.';
+  const message = error instanceof ApiError ? describeApiError(code, error.message) : t('تعذر الاتصال بالخادم. تحقّقي من الشبكة ثم حاولي مجددًا.');
   const conflict = isConflictCode(code);
   const forbidden = error instanceof ApiError && error.status === 403;
   return (
     <Paper elevation={0} sx={{ p: 4 }}>
       <Alert severity={conflict ? 'warning' : 'error'} sx={{ mb: 2 }}>
-        {forbidden ? 'ليس لديك صلاحية عرض هذا المورد.' : message}
+        {forbidden ? t('ليس لديك صلاحية عرض هذا المورد.') : message}
         {error instanceof ApiError && error.requestId && (
-          <Typography variant="caption" sx={{ display: 'block' }}>رقم التتبع: {error.requestId}</Typography>
+          <Typography variant="caption" sx={{ display: 'block' }}>{t('رقم التتبع: {{id}}', { id: error.requestId })}</Typography>
         )}
       </Alert>
-      <Button variant="outlined" onClick={onRetry}>إعادة المحاولة</Button>
+      <Button variant="outlined" onClick={onRetry}>{t('إعادة المحاولة')}</Button>
     </Paper>
   );
 }

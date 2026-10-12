@@ -9,8 +9,10 @@ import { ApiError } from '../api/client';
 import { deactivateUser, getUser, reactivateUser } from '../api/users';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
 import { describeApiError, formatDateTime } from '../fmt/format';
+import { useI18n } from '../i18n/i18n';
 
 export function UserDetailPage() {
+  const { t } = useI18n();
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const [confirm, setConfirm] = useState<'deactivate' | 'reactivate' | null>(null);
@@ -29,7 +31,7 @@ export function UserDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
     onError: (cause) => {
-      setActionError(cause instanceof ApiError ? describeApiError(cause.code, cause.message) : 'تعذر تنفيذ الأمر.');
+      setActionError(cause instanceof ApiError ? describeApiError(cause.code, cause.message) : t('تعذر تنفيذ الأمر.'));
     },
   });
   const user = query.data;
@@ -38,11 +40,11 @@ export function UserDetailPage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 3, md: 4 } }}>
       <PageHeader
-        title="ملف الحساب"
+        title={t('ملف الحساب')}
         {...(user ? { subtitle: user.name } : {})}
-        actions={<Button component={RouterLink} to="/users">عودة إلى القائمة</Button>}
+        actions={<Button component={RouterLink} to="/users">{t('عودة إلى القائمة')}</Button>}
       />
-      {query.isLoading && <LoadingState label="جارٍ تحميل الحساب" />}
+      {query.isLoading && <LoadingState label={t('جارٍ تحميل الحساب')} />}
       {query.error && <ErrorState error={query.error} onRetry={() => void query.refetch()} />}
       {user && (
         <Stack spacing={3}>
@@ -53,49 +55,49 @@ export function UserDetailPage() {
                 <Typography variant="h5" component="h2">{user.name}</Typography>
                 <Typography color="text.secondary" dir="ltr" sx={{ textAlign: 'right' }}>{user.phone}</Typography>
                 <Typography color="text.secondary">
-                  {user.role === 'customer' ? 'عميلة' : user.role === 'expert' ? 'خبيرة' : 'مدير'}
-                  {' · '}{user.cityName ?? 'بلا مدينة'}
-                  {' · '}التقييم {user.ratingAvg} ({user.ratingCount})
+                   {user.role === 'customer' ? t('عميلة') : user.role === 'expert' ? t('خبيرة') : t('مدير')}
+                   {' · '}{user.cityName ?? t('بلا مدينة')}
+                   {' · '}{t('التقييم')} {user.ratingAvg} ({user.ratingCount})
                 </Typography>
-                <Typography color="text.secondary">أُنشئ {formatDateTime(user.createdAt)} · الهاتف {user.phoneVerified ? 'موثق' : 'غير موثق'}</Typography>
+                 <Typography color="text.secondary">{t('أُنشئ')} {formatDateTime(user.createdAt)} · {t('الهاتف')} {user.phoneVerified ? t('موثق') : t('غير موثق')}</Typography>
               </Box>
-              <Chip size="medium" color={user.isActive ? 'success' : 'default'} label={user.isActive ? 'نشط' : 'معطّل'} />
+               <Chip size="medium" color={user.isActive ? 'success' : 'default'} label={user.isActive ? t('نشط') : t('معطّل')} />
             </Stack>
             <Divider sx={{ my: 2.5 }} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-              {expertLink && <Button variant="outlined" component={RouterLink} to={expertLink}>فتح ملف الخبيرة</Button>}
+               {expertLink && <Button variant="outlined" component={RouterLink} to={expertLink}>{t('فتح ملف الخبيرة')}</Button>}
               {user.role !== 'admin' && user.isActive && (
-                <Button variant="outlined" color="error" disabled={mutation.isPending} onClick={() => setConfirm('deactivate')}>تعطيل الحساب</Button>
+                 <Button variant="outlined" color="error" disabled={mutation.isPending} onClick={() => setConfirm('deactivate')}>{t('تعطيل الحساب')}</Button>
               )}
               {user.role !== 'admin' && !user.isActive && (
-                <Button variant="contained" color="success" disabled={mutation.isPending} onClick={() => setConfirm('reactivate')}>إعادة التفعيل</Button>
+                 <Button variant="contained" color="success" disabled={mutation.isPending} onClick={() => setConfirm('reactivate')}>{t('إعادة التفعيل')}</Button>
               )}
               {user.role === 'admin' && (
-                <Typography variant="caption" color="text.secondary">لا يمكن تعطيل حساب مدير من اللوحة.</Typography>
+                 <Typography variant="caption" color="text.secondary">{t('لا يمكن تعطيل حساب مدير من اللوحة.')}</Typography>
               )}
             </Stack>
           </Paper>
         </Stack>
       )}
-      {!query.isLoading && !query.error && !user && <EmptyState title="الحساب غير موجود" />}
+       {!query.isLoading && !query.error && !user && <EmptyState title={t('الحساب غير موجود')} />}
       <Dialog open={confirm !== null} onClose={() => setConfirm(null)} aria-labelledby="user-decision-title">
-        <DialogTitle id="user-decision-title">{confirm === 'reactivate' ? 'تأكيد التفعيل' : 'تأكيد التعطيل'}</DialogTitle>
+         <DialogTitle id="user-decision-title">{confirm === 'reactivate' ? t('تأكيد التفعيل') : t('تأكيد التعطيل')}</DialogTitle>
         <DialogContent>
           <DialogContentText>
             {confirm === 'reactivate'
-              ? 'سيستعيد الحساب أهلية الدخول فقط دون تغيير أي بيانات أخرى.'
-              : 'سيُبطل هذا كل جلسات الحساب فورًا مع حفظ تاريخه وحجوزاته.'}
+               ? t('سيستعيد الحساب أهلية الدخول فقط دون تغيير أي بيانات أخرى.')
+               : t('سيُبطل هذا كل جلسات الحساب فورًا مع حفظ تاريخه وحجوزاته.')}
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirm(null)}>تراجع</Button>
+           <Button onClick={() => setConfirm(null)}>{t('تراجع')}</Button>
           <Button
             variant="contained"
             color={confirm === 'reactivate' ? 'success' : 'error'}
             disabled={mutation.isPending}
             onClick={() => confirm && mutation.mutate(confirm)}
           >
-            تأكيد
+             {t('تأكيد')}
           </Button>
         </DialogActions>
       </Dialog>
