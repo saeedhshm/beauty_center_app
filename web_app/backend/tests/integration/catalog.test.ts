@@ -136,7 +136,7 @@ it('enforces address ownership, active-city coverage, coordinate validation and 
   expect((await request(h.app).delete(`/api/v1/addresses/${id}`).auth(owner.accessToken, { type: 'bearer' })).status).toBe(204);
 });
 
-it('creates managed cities with strict unique fields and activates them atomically with audit', async () => {
+it('creates, activates and safely deletes managed cities with atomic audit', async () => {
   const h = await harness();
   const suffix = randomInt(100000, 999999).toString();
   const input = { name: `الإسكندرية ${suffix}`, code: `EG-A${suffix}` };
@@ -163,6 +163,25 @@ it('creates managed cities with strict unique fields and activates them atomical
   await request(h.app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ cityId: created.body.data.id });
   expect((await request(h.app).get('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' })).body.data.cityId).toBe(created.body.data.id);
   await request(h.app).patch(`/api/v1/admin/cities/${created.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: false });
+  const inUse = await request(h.app).delete(`/api/v1/admin/cities/${created.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' });
+  expect(inUse.status).toBe(409);
+  expect(inUse.body.error.code).toBe('CITY_IN_USE');
+  const protectedLaunch = await request(h.app).delete(`/api/v1/admin/cities/${h.cityId}`).auth(h.admin.accessToken, { type: 'bearer' });
+  expect(protectedLaunch.status).toBe(409);
+  expect(protectedLaunch.body.error.code).toBe('LAUNCH_CITY_PROTECTED');
+
+  const disposable = await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' })
+    .send({ name: `الجيزة ${suffix}`, code: `EG-G${suffix}` });
+  expect(disposable.status).toBe(201);
+  await request(h.app).patch(`/api/v1/admin/cities/${disposable.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
+  const activeDelete = await request(h.app).delete(`/api/v1/admin/cities/${disposable.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' });
+  expect(activeDelete.status).toBe(409);
+  expect(activeDelete.body.error.code).toBe('CITY_MUST_BE_INACTIVE');
+  await request(h.app).patch(`/api/v1/admin/cities/${disposable.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: false });
+  expect((await request(h.app).delete(`/api/v1/admin/cities/${disposable.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' })).status).toBe(204);
+  expect((await request(h.app).get('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' })).body.data)
+    .not.toContainEqual(expect.objectContaining({ id: disposable.body.data.id }));
+  expect((await pool.query("select action from admin_audit_logs where actor_id=$1 and resource_id=$2 and action='city.deleted'", [h.adminId, String(disposable.body.data.id)])).rowCount).toBe(1);
 });
 
 it('prevents self-approval and cross-expert writes, hides inactive services, suspended experts and legacy-priced offers', async () => {

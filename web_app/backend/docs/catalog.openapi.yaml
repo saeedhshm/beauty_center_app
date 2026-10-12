@@ -343,7 +343,7 @@ paths:
     post:
       operationId: createAdminCity
       security: [{ AdminBearer: [] }]
-      description: Creates an inactive city. Name and code are immutable through this API; there is no physical delete endpoint.
+      description: Creates an inactive city. Name and code are immutable through this API.
       requestBody:
         required: true
         content:
@@ -388,6 +388,19 @@ paths:
                 properties:
                   requestId: { type: string, format: uuid }
                   data: { $ref: '#/components/schemas/City' }
+        default:
+          $ref: '#/components/responses/Error'
+    delete:
+      operationId: deleteUnusedManagedCity
+      security: [{ AdminBearer: [] }]
+      description: Deletes only an inactive, unused city that is not the launch city. Foreign-key relationships preserve users, addresses and booking history.
+      parameters:
+        - $ref: '#/components/parameters/SmallId'
+      responses:
+        '204':
+          description: City deleted and audited atomically
+        '409':
+          description: LAUNCH_CITY_PROTECTED, CITY_MUST_BE_INACTIVE or CITY_IN_USE
         default:
           $ref: '#/components/responses/Error'
   /api/v1/admin/services:

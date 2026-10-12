@@ -1,4 +1,5 @@
 import AddRounded from '@mui/icons-material/AddRounded';
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import {
   Alert, Box, Button, Chip, Container, Dialog, DialogActions, DialogContent,
   DialogContentText, DialogTitle, FormControl, InputLabel, MenuItem, Paper, Select,
@@ -8,13 +9,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
-import { createCity, getSettings, listCities, setCityActive, updateCurrency, updatePolicy } from '../api/settings';
+import { createCity, deleteCity, getSettings, listCities, setCityActive, updateCurrency, updatePolicy } from '../api/settings';
 import type { AdminCity } from '../api/settings';
 import { EmptyState, ErrorState, LoadingState, PageHeader } from '../components/QueryState';
-import { describeApiError, formatCommissionRate } from '../fmt/format';
+import { describeApiError } from '../fmt/format';
 import { useI18n, type Locale } from '../i18n/i18n';
 
 type CityDecision = { city: AdminCity; activate: boolean } | null;
+type CityDeleteDecision = AdminCity | null;
 type Currency = 'EGP' | 'SAR';
 
 function isTimeoutInput(value: string): boolean {
@@ -29,11 +31,11 @@ export function SettingsPage() {
   const { locale, setLocale, t } = useI18n();
   const queryClient = useQueryClient();
   const [cityDecision, setCityDecision] = useState<CityDecision>(null);
+  const [cityDeleteDecision, setCityDeleteDecision] = useState<CityDeleteDecision>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [editingPolicy, setEditingPolicy] = useState(false);
-  const [acceptance, setAcceptance] = useState('');
-  const [payment, setPayment] = useState('');
-  const [commission, setCommission] = useState('');
+  const [acceptance, setAcceptance] = useState<string | null>(null);
+  const [payment, setPayment] = useState<string | null>(null);
+  const [commission, setCommission] = useState<string | null>(null);
   const [policyErrors, setPolicyErrors] = useState<{ acceptance?: string; payment?: string; commission?: string }>({});
   const [confirmingPolicy, setConfirmingPolicy] = useState(false);
   const [currencyChoice, setCurrencyChoice] = useState<Currency | null>(null);
@@ -46,6 +48,14 @@ export function SettingsPage() {
   const settingsQuery = useQuery({ queryKey: ['admin-settings'], queryFn: getSettings });
   const citiesQuery = useQuery({ queryKey: ['admin-cities'], queryFn: listCities });
   const settings = settingsQuery.data;
+  const acceptanceValue = acceptance ?? (settings ? String(settings.bookingPolicy.acceptanceTimeoutMinutes) : '');
+  const paymentValue = payment ?? (settings ? String(settings.bookingPolicy.paymentTimeoutMinutes) : '');
+  const commissionValue = commission ?? (settings ? settings.bookingPolicy.commissionRate.replace(/0+$/, '').replace(/\.$/, '') : '');
+  const policyChanged = Boolean(settings) && (
+    Number(acceptanceValue) !== settings?.bookingPolicy.acceptanceTimeoutMinutes
+    || Number(paymentValue) !== settings?.bookingPolicy.paymentTimeoutMinutes
+    || Number(commissionValue) !== Number(settings?.bookingPolicy.commissionRate)
+  );
   const selectedCurrency: Currency = currencyChoice ?? (settings?.currency === 'SAR' ? 'SAR' : 'EGP');
   const loading = settingsQuery.isLoading || citiesQuery.isLoading;
   const error = settingsQuery.error ?? citiesQuery.error;
@@ -80,14 +90,29 @@ export function SettingsPage() {
     onError: (cause) => setActionError(cause instanceof ApiError ? describeApiError(cause.code, cause.message) : t('تعذر إنشاء المدينة.')),
   });
 
+  const cityDeleteMutation = useMutation({
+    mutationFn: (city: AdminCity) => deleteCity(city.id),
+    onSuccess: async () => {
+      setCityDeleteDecision(null);
+      setActionError(null);
+      await refreshCities();
+    },
+    onError: (cause) => {
+      setCityDeleteDecision(null);
+      setActionError(cause instanceof ApiError ? describeApiError(cause.code, cause.message) : t('تعذر حذف المدينة.'));
+    },
+  });
+
   const policyMutation = useMutation({
     mutationFn: () => updatePolicy({
-      acceptanceTimeoutMinutes: Number(acceptance.trim()),
-      paymentTimeoutMinutes: Number(payment.trim()),
-      commissionRate: commission.trim(),
+      acceptanceTimeoutMinutes: Number(acceptanceValue.trim()),
+      paymentTimeoutMinutes: Number(paymentValue.trim()),
+      commissionRate: commissionValue.trim(),
     }),
     onSuccess: async () => {
-      setEditingPolicy(false);
+      setAcceptance(null);
+      setPayment(null);
+      setCommission(null);
       setConfirmingPolicy(false);
       setActionError(null);
       await refreshSettings();
@@ -112,21 +137,11 @@ export function SettingsPage() {
     },
   });
 
-  const startPolicyEdit = () => {
-    if (!settings) return;
-    setAcceptance(String(settings.bookingPolicy.acceptanceTimeoutMinutes));
-    setPayment(String(settings.bookingPolicy.paymentTimeoutMinutes));
-    setCommission(settings.bookingPolicy.commissionRate.replace(/0+$/, '').replace(/\.$/, ''));
-    setPolicyErrors({});
-    setActionError(null);
-    setEditingPolicy(true);
-  };
-
   const requestPolicySave = () => {
     const errors: typeof policyErrors = {};
-    if (!isTimeoutInput(acceptance)) errors.acceptance = t('عدد صحيح بين 1 و1440 دقيقة.');
-    if (!isTimeoutInput(payment)) errors.payment = t('عدد صحيح بين 1 و1440 دقيقة.');
-    if (!isCommissionInput(commission)) errors.commission = t('نسبة بين 0 و100 بأربع منازل عشرية كحد أقصى.');
+    if (!isTimeoutInput(acceptanceValue)) errors.acceptance = t('عدد صحيح بين 1 و1440 دقيقة.');
+    if (!isTimeoutInput(paymentValue)) errors.payment = t('عدد صحيح بين 1 و1440 دقيقة.');
+    if (!isCommissionInput(commissionValue)) errors.commission = t('نسبة بين 0 و100 بأربع منازل عشرية كحد أقصى.');
     setPolicyErrors(errors);
     if (Object.keys(errors).length === 0) setConfirmingPolicy(true);
   };
@@ -167,34 +182,24 @@ export function SettingsPage() {
       {settings && (
         <>
           <Paper elevation={0} sx={{ p: 3, mb: 3 }}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, mb: 2 }}>
-              <Typography variant="h6" component="h2">{t('لقطة السياسة الحالية')}</Typography>
-              {!editingPolicy && <Button variant="outlined" onClick={startPolicyEdit}>{t('تعديل المهل والعمولة')}</Button>}
-            </Stack>
-            <Stack spacing={1}>
+            <Typography variant="h6" component="h2" sx={{ mb: 2 }}>{t('إعدادات سياسة الحجز')}</Typography>
+            <Stack spacing={1} sx={{ mb: 2 }}>
               <Typography>{t('مدينة الإطلاق')}: <strong>{settings.launchCity.name} ({settings.launchCity.code})</strong></Typography>
               <Typography>{t('العملة')}: <strong>{settings.currency}</strong> · {t('المنطقة الزمنية')}: <strong dir="ltr">{settings.timeZone}</strong></Typography>
-              <Typography>{t('مهلة القبول')}: <strong>{settings.bookingPolicy.acceptanceTimeoutMinutes} {t('دقيقة')}</strong></Typography>
-              <Typography>{t('مهلة الدفع')}: <strong>{settings.bookingPolicy.paymentTimeoutMinutes} {t('دقيقة')}</strong></Typography>
-              <Typography>{t('العمولة')}: <strong>{formatCommissionRate(settings.bookingPolicy.commissionRate)}</strong></Typography>
               <Typography>{t('وضع الدفع')}: <strong>{settings.paymentMode === 'demo' ? t('تجريبي (Demo)') : settings.paymentMode}</strong></Typography>
+            </Stack>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label={t('مهلة القبول (دقيقة)')} type="number" value={acceptanceValue} onChange={(event) => setAcceptance(event.target.value)} slotProps={{ htmlInput: { min: 1, max: 1440 } }} error={Boolean(policyErrors.acceptance)} helperText={policyErrors.acceptance ?? t('من 1 إلى 1440.')} sx={{ maxWidth: 220 }} />
+              <TextField label={t('مهلة الدفع (دقيقة)')} type="number" value={paymentValue} onChange={(event) => setPayment(event.target.value)} slotProps={{ htmlInput: { min: 1, max: 1440 } }} error={Boolean(policyErrors.payment)} helperText={policyErrors.payment ?? t('من 1 إلى 1440.')} sx={{ maxWidth: 220 }} />
+              <TextField label={t('العمولة (%)')} inputMode="decimal" value={commissionValue} onChange={(event) => setCommission(event.target.value)} error={Boolean(policyErrors.commission)} helperText={policyErrors.commission ?? t('من 0 إلى 100.')} sx={{ maxWidth: 220 }} />
+            </Stack>
+            <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+              <Button variant="contained" disabled={!policyChanged || policyMutation.isPending} onClick={requestPolicySave}>{t('مراجعة وحفظ')}</Button>
+              <Button disabled={!policyChanged || policyMutation.isPending} onClick={() => { setAcceptance(null); setPayment(null); setCommission(null); setPolicyErrors({}); }}>{t('استعادة القيم الحالية')}</Button>
             </Stack>
             <Alert severity="info" sx={{ mt: 2 }}>
               {t('تُحفظ مهلة القبول والعمولة كلقطتين عند إنشاء الحجز. مهلة الدفع الحالية هي التي تبدأ عندما يُقبل حجز pending. السجلات السابقة لا تتغير.')}
             </Alert>
-            {editingPolicy && (
-              <Box sx={{ mt: 2, borderTop: 1, borderColor: 'divider', pt: 2 }}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                  <TextField label={t('مهلة القبول (دقيقة)')} type="number" value={acceptance} onChange={(event) => setAcceptance(event.target.value)} slotProps={{ htmlInput: { min: 1, max: 1440 } }} error={Boolean(policyErrors.acceptance)} helperText={policyErrors.acceptance ?? t('من 1 إلى 1440.')} sx={{ maxWidth: 220 }} />
-                  <TextField label={t('مهلة الدفع (دقيقة)')} type="number" value={payment} onChange={(event) => setPayment(event.target.value)} slotProps={{ htmlInput: { min: 1, max: 1440 } }} error={Boolean(policyErrors.payment)} helperText={policyErrors.payment ?? t('من 1 إلى 1440.')} sx={{ maxWidth: 220 }} />
-                  <TextField label={t('العمولة (%)')} inputMode="decimal" value={commission} onChange={(event) => setCommission(event.target.value)} error={Boolean(policyErrors.commission)} helperText={policyErrors.commission ?? t('من 0 إلى 100.')} sx={{ maxWidth: 220 }} />
-                </Stack>
-                <Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-                  <Button variant="contained" disabled={policyMutation.isPending} onClick={requestPolicySave}>{t('مراجعة وحفظ')}</Button>
-                  <Button disabled={policyMutation.isPending} onClick={() => { setEditingPolicy(false); setPolicyErrors({}); }}>{t('تراجع')}</Button>
-                </Stack>
-              </Box>
-            )}
           </Paper>
 
           <Paper elevation={0} sx={{ p: 3, mb: 3 }}>
@@ -234,14 +239,19 @@ export function SettingsPage() {
                       <TableCell sx={{ fontWeight: 700 }}>{city.name}</TableCell>
                       <TableCell dir="ltr">{city.code ?? '—'}</TableCell>
                       <TableCell><Chip size="small" color={city.isActive ? 'success' : 'default'} label={city.isActive ? t('مفعلة') : t('معطلة')} /></TableCell>
-                      <TableCell align="left"><Button size="small" color={city.isActive ? 'error' : 'success'} onClick={() => setCityDecision({ city, activate: !city.isActive })}>{city.isActive ? t('تعطيل') : t('تفعيل')}</Button></TableCell>
+                      <TableCell align="left">
+                        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                          <Button size="small" color={city.isActive ? 'error' : 'success'} onClick={() => setCityDecision({ city, activate: !city.isActive })}>{city.isActive ? t('تعطيل') : t('تفعيل')}</Button>
+                          <Button size="small" color="error" startIcon={<DeleteOutlineRounded />} disabled={city.isActive || city.id === settings?.launchCity.id} onClick={() => setCityDeleteDecision(city)}>{t('حذف')}</Button>
+                        </Stack>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </TableContainer>
           )}
-          <Alert severity="info" sx={{ mt: 2 }}>{t('لا يوجد حذف للمدن: التعطيل يمنع الاستخدام الجديد مع الحفاظ على الحجوزات والسجلات التاريخية.')}</Alert>
+          <Alert severity="info" sx={{ mt: 2 }}>{t('يمكن حذف مدينة معطلة وغير مستخدمة فقط. المدن المرتبطة بمستخدمين أو عناوين أو حجوزات تبقى محفوظة ويمكن تعطيلها.')}</Alert>
         </Paper>
       )}
 
@@ -249,6 +259,12 @@ export function SettingsPage() {
         <DialogTitle id="city-decision-title">{cityDecision?.activate ? t('تأكيد تفعيل المدينة') : t('تأكيد تعطيل المدينة')}</DialogTitle>
         <DialogContent><DialogContentText>{cityDecision?.activate ? t('ستصبح {{name}} متاحة للاستخدام الجديد بعد تأكيد الخادم.', { name: cityDecision?.city.name ?? '' }) : t('سيتوقف الاستخدام الجديد لمدينة {{name}}، مع بقاء كل السجلات التاريخية دون حذف.', { name: cityDecision?.city.name ?? '' })}</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setCityDecision(null)}>{t('تراجع')}</Button><Button variant="contained" color={cityDecision?.activate ? 'success' : 'error'} disabled={cityStatusMutation.isPending} onClick={() => cityDecision && cityStatusMutation.mutate(cityDecision)}>{t('تأكيد')}</Button></DialogActions>
+      </Dialog>
+
+      <Dialog open={cityDeleteDecision !== null} onClose={() => setCityDeleteDecision(null)} aria-labelledby="city-delete-title">
+        <DialogTitle id="city-delete-title">{t('تأكيد حذف المدينة')}</DialogTitle>
+        <DialogContent><DialogContentText>{t('سيُحذف سجل مدينة {{name}} نهائيًا إذا لم يكن مرتبطًا بأي مستخدم أو عنوان أو حجز. لا يمكن التراجع عن هذا الإجراء.', { name: cityDeleteDecision?.name ?? '' })}</DialogContentText></DialogContent>
+        <DialogActions><Button onClick={() => setCityDeleteDecision(null)}>{t('تراجع')}</Button><Button variant="contained" color="error" disabled={cityDeleteMutation.isPending} onClick={() => cityDeleteDecision && cityDeleteMutation.mutate(cityDeleteDecision)}>{t('تأكيد الحذف')}</Button></DialogActions>
       </Dialog>
 
       <Dialog open={cityDialogOpen} onClose={() => setCityDialogOpen(false)} fullWidth maxWidth="sm" aria-labelledby="city-create-title">
@@ -259,7 +275,7 @@ export function SettingsPage() {
 
       <Dialog open={confirmingPolicy} onClose={() => setConfirmingPolicy(false)} aria-labelledby="policy-decision-title">
         <DialogTitle id="policy-decision-title">{t('تأكيد تعديل السياسة')}</DialogTitle>
-        <DialogContent><DialogContentText>{t('ستُحفظ مهلة القبول {{acceptance}} دقيقة والعمولة {{commission}}% كلقطتين للحجوزات التي تُنشأ لاحقًا. مهلة الدفع {{payment}} دقيقة ستُطبق عند قبول حجز pending وفق السياسة الحالية. السجلات السابقة لا تتغير.', { acceptance: acceptance.trim(), commission: commission.trim(), payment: payment.trim() })}</DialogContentText></DialogContent>
+        <DialogContent><DialogContentText>{t('ستُحفظ مهلة القبول {{acceptance}} دقيقة والعمولة {{commission}}% كلقطتين للحجوزات التي تُنشأ لاحقًا. مهلة الدفع {{payment}} دقيقة ستُطبق عند قبول حجز pending وفق السياسة الحالية. السجلات السابقة لا تتغير.', { acceptance: acceptanceValue.trim(), commission: commissionValue.trim(), payment: paymentValue.trim() })}</DialogContentText></DialogContent>
         <DialogActions><Button onClick={() => setConfirmingPolicy(false)}>{t('تراجع')}</Button><Button variant="contained" disabled={policyMutation.isPending} onClick={() => policyMutation.mutate()}>{t('تأكيد الحفظ')}</Button></DialogActions>
       </Dialog>
 

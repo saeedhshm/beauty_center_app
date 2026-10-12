@@ -24,6 +24,7 @@ export function catalogControllers(service: CatalogService) {
     adminCities: async (_req, res) => { res.json({ data: await service.listCities(true), requestId: res.locals.requestId }); },
     addCity: async (req, res) => { res.status(201).json({ data: await service.createCity(authenticatedUser(res), citySchema.parse(req.body)), requestId: res.locals.requestId }); },
     editCity: async (req, res) => { res.json({ data: await service.updateCity(authenticatedUser(res), idSchema.parse(req.params.id), cityPatchSchema.parse(req.body).isActive), requestId: res.locals.requestId }); },
+    deleteCity: async (req, res) => { await service.deleteCity(authenticatedUser(res), idSchema.parse(req.params.id)); res.status(204).end(); },
     adminServices: async (req, res) => { res.json({ data: await service.listServices(pageSchema.strict().parse(req.query), authenticatedUser(res)), requestId: res.locals.requestId }); },
     addService: async (req, res) => { res.status(201).json({ data: await service.createService(authenticatedUser(res), serviceSchema.parse(req.body)), requestId: res.locals.requestId }); },
     editService: async (req, res) => { res.json({ data: await service.updateService(authenticatedUser(res), idSchema.parse(req.params.id), servicePatchSchema.parse(req.body)), requestId: res.locals.requestId }); },

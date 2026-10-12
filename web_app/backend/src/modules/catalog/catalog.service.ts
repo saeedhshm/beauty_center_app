@@ -12,6 +12,8 @@ const serviceDto = (row: { id: number; name: string; description: string | null;
 const cityDto = (row: { id: number; name: string; code: string | null; isActive: boolean }) => ({ id: row.id, name: row.name, code: row.code, isActive: row.isActive });
 const isUniqueViolation = (error: unknown) => (error as { code?: string })?.code === '23505'
   || (error as { cause?: { code?: string } })?.cause?.code === '23505';
+const isForeignKeyViolation = (error: unknown) => (error as { code?: string })?.code === '23503'
+  || (error as { cause?: { code?: string } })?.cause?.code === '23503';
 
 export class CatalogService {
   constructor(private readonly repo: CatalogRepository) {}
@@ -53,11 +55,26 @@ export class CatalogService {
   async updateCity(actor: AuthenticatedUser, id: number, isActive: boolean) {
     requireRole(actor, 'admin');
     return this.repo.transaction(async (repo) => {
-      const city = await repo.city(id); if (!city) throw notFound();
+      const city = await repo.city(id, true); if (!city) throw notFound();
       const after = await repo.changeCity(id, isActive);
       await repo.audit(actor.id, 'city.updated', 'city', String(id), { before: { isActive: city.isActive }, after: { isActive } });
       return cityDto(after);
     });
+  }
+  async deleteCity(actor: AuthenticatedUser, id: number) {
+    requireRole(actor, 'admin');
+    try {
+      await this.repo.transaction(async (repo) => {
+        const city = await repo.city(id, true); if (!city) throw notFound();
+        if (city.code === MARKET.cityCode) throw new AppError(409, 'LAUNCH_CITY_PROTECTED', 'لا يمكن حذف مدينة الإطلاق');
+        if (city.isActive) throw new AppError(409, 'CITY_MUST_BE_INACTIVE', 'عطّلي المدينة قبل حذفها');
+        await repo.removeCity(id);
+        await repo.audit(actor.id, 'city.deleted', 'city', String(id), { before: cityDto(city) });
+      });
+    } catch (error) {
+      if (isForeignKeyViolation(error)) throw new AppError(409, 'CITY_IN_USE', 'لا يمكن حذف مدينة مرتبطة بمستخدمين أو عناوين أو حجوزات');
+      throw error;
+    }
   }
   async updateCurrency(actor: AuthenticatedUser, currency: 'EGP' | 'SAR') {
     requireRole(actor, 'admin');

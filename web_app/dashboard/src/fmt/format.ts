@@ -124,6 +124,9 @@ const CONFLICT_CODES = new Set([
   'BOOKING_EXPIRED',
   'EXPERT_NOT_APPROVED',
   'CITY_UNAVAILABLE',
+  'CITY_IN_USE',
+  'CITY_MUST_BE_INACTIVE',
+  'LAUNCH_CITY_PROTECTED',
   'SERVICE_UNAVAILABLE',
   'PAYMENT_ALREADY_SETTLED',
   'BOOKING_ALREADY_PAID_OUT',
@@ -155,6 +158,12 @@ export function describeApiError(code: string | undefined, fallback: string): st
       return translate(locale, 'الخبيرة غير معتمدة حاليًا. راجعي حالة الاعتماد أولًا.');
     case 'PAYMENT_ALREADY_SETTLED':
       return translate(locale, 'سُجل دفع لهذا الحجز مسبقًا. أعيدي التحميل لعرض الحالة الحالية.');
+    case 'CITY_IN_USE':
+      return translate(locale, 'لا يمكن حذف مدينة مرتبطة بمستخدمين أو عناوين أو حجوزات. عطّليها بدلًا من حذفها.');
+    case 'CITY_MUST_BE_INACTIVE':
+      return translate(locale, 'عطّلي المدينة أولًا قبل محاولة حذفها.');
+    case 'LAUNCH_CITY_PROTECTED':
+      return translate(locale, 'لا يمكن حذف مدينة الإطلاق.');
     default:
       return fallback;
   }

@@ -44,6 +44,10 @@ export function setCityActive(id: number, isActive: boolean) {
   });
 }
 
+export function deleteCity(id: number) {
+  return apiRequest<void>(`/api/v1/admin/cities/${id}`, { method: 'DELETE' });
+}
+
 export interface PolicyPatch {
   acceptanceTimeoutMinutes?: number;
   paymentTimeoutMinutes?: number;

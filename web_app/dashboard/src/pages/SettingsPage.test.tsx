@@ -27,7 +27,7 @@ function stubFetch(handler: (path: string, init?: RequestInit) => Promise<Respon
 }
 
 describe('Settings flow (mocked API responses, labeled)', () => {
-  it('renders the read-only policy snapshot and the city list from the server', async () => {
+  it('renders editable policy controls and the city list from the server', async () => {
     stubFetch(async (path) => {
       if (path === '/api/v1/admin/settings') return json(settingsBody);
       if (path === '/api/v1/admin/cities') return json({ data: [activeCity], requestId: 'r' });
@@ -38,7 +38,10 @@ describe('Settings flow (mocked API responses, labeled)', () => {
         <Routes><Route path="/settings" element={<SettingsPage />} /></Routes>
       </RouterShell>,
     );
-    expect(await screen.findByText('لقطة السياسة الحالية')).toBeInTheDocument();
+    expect(await screen.findByText('إعدادات سياسة الحجز')).toBeInTheDocument();
+    expect(screen.getByLabelText('مهلة القبول (دقيقة)')).toHaveValue(30);
+    expect(screen.getByLabelText('مهلة الدفع (دقيقة)')).toHaveValue(20);
+    expect(screen.getByLabelText('العمولة (%)')).toHaveValue('20');
     expect(screen.getByText(/تجريبي \(Demo\)/)).toBeInTheDocument();
     expect(screen.getByText('القاهرة')).toBeInTheDocument();
     expect(screen.getByText('مفعلة')).toBeInTheDocument();
@@ -66,15 +69,14 @@ describe('Settings flow (mocked API responses, labeled)', () => {
         <Routes><Route path="/settings" element={<SettingsPage />} /></Routes>
       </RouterShell>,
     );
-    expect(await screen.findByText('لقطة السياسة الحالية')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'تعديل المهل والعمولة' }));
+    expect(await screen.findByText('إعدادات سياسة الحجز')).toBeInTheDocument();
     const acceptance = screen.getByLabelText('مهلة القبول (دقيقة)');
     await user.clear(acceptance);
     await user.type(acceptance, '45');
     await user.click(screen.getByRole('button', { name: 'مراجعة وحفظ' }));
     expect(await screen.findByText(/ستُحفظ مهلة القبول 45 دقيقة/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'تأكيد الحفظ' }));
-    await waitFor(() => expect(screen.getByText(/45 دقيقة/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByLabelText('مهلة القبول (دقيقة)')).toHaveValue(45));
   });
 
   it('blocks out-of-range policy values before sending anything', async () => {
@@ -91,8 +93,7 @@ describe('Settings flow (mocked API responses, labeled)', () => {
         <Routes><Route path="/settings" element={<SettingsPage />} /></Routes>
       </RouterShell>,
     );
-    expect(await screen.findByText('لقطة السياسة الحالية')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'تعديل المهل والعمولة' }));
+    expect(await screen.findByText('إعدادات سياسة الحجز')).toBeInTheDocument();
     const commission = screen.getByLabelText('العمولة (%)');
     await user.clear(commission);
     await user.type(commission, '150');
@@ -127,7 +128,7 @@ describe('Settings flow (mocked API responses, labeled)', () => {
     await waitFor(() => expect(screen.getByText('معطلة')).toBeInTheDocument());
   });
 
-  it('creates a city and preserves the no-delete historical guidance', async () => {
+  it('creates a city and explains safe deletion', async () => {
     let cities = [activeCity];
     let posted: unknown;
     stubFetch(async (path, init) => {
@@ -135,7 +136,7 @@ describe('Settings flow (mocked API responses, labeled)', () => {
       if (path === '/api/v1/admin/cities' && (init?.method ?? 'GET') === 'GET') return json({ data: cities, requestId: 'r' });
       if (path === '/api/v1/admin/cities' && init?.method === 'POST') {
         posted = JSON.parse(String(init.body));
-        cities = [...cities, { id: 8, name: 'الجيزة', code: 'EG-GIZ', isActive: true }];
+        cities = [...cities, { id: 8, name: 'الجيزة', code: 'EG-GIZ', isActive: false }];
         return json({ data: cities[1], requestId: 'c' }, 201);
       }
       throw new Error(`unexpected ${init?.method ?? 'GET'} ${path}`);
@@ -147,9 +148,35 @@ describe('Settings flow (mocked API responses, labeled)', () => {
     await user.type(screen.getByLabelText('رمز المدينة'), 'eg-giz');
     await user.click(screen.getByRole('button', { name: 'إنشاء' }));
     expect(await screen.findByText('الجيزة')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'إنشاء مدينة' })).not.toBeInTheDocument());
     expect(posted).toEqual({ name: 'الجيزة', code: 'EG-GIZ' });
-    expect(screen.getByText(/لا يوجد حذف للمدن/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /حذف/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/يمكن حذف مدينة معطلة وغير مستخدمة فقط/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /حذف/ })).toHaveLength(2);
+  });
+
+  it('deletes an inactive unused city only after confirmation', async () => {
+    let cities = [activeCity, { id: 8, name: 'الجيزة', code: 'EG-GIZ', isActive: false }];
+    let deletedId: number | null = null;
+    stubFetch(async (path, init) => {
+      if (path === '/api/v1/admin/settings') return json(settingsBody);
+      if (path === '/api/v1/admin/cities' && (init?.method ?? 'GET') === 'GET') return json({ data: cities, requestId: 'r' });
+      if (path === '/api/v1/admin/cities/8' && init?.method === 'DELETE') {
+        deletedId = 8;
+        cities = cities.filter((city) => city.id !== 8);
+        return new Response(null, { status: 204 });
+      }
+      throw new Error(`unexpected ${init?.method ?? 'GET'} ${path}`);
+    });
+    const user = userEvent.setup();
+    render(<RouterShell initialPath="/settings"><Routes><Route path="/settings" element={<SettingsPage />} /></Routes></RouterShell>);
+    expect(await screen.findByText('الجيزة')).toBeInTheDocument();
+    const deleteButton = screen.getAllByRole('button', { name: /حذف/ }).find((button) => !button.hasAttribute('disabled'));
+    expect(deleteButton).toBeDefined();
+    await user.click(deleteButton!);
+    expect(screen.getByText(/سيُحذف سجل مدينة الجيزة نهائيًا/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'تأكيد الحذف' }));
+    await waitFor(() => expect(deletedId).toBe(8));
+    await waitFor(() => expect(screen.queryByText('الجيزة')).not.toBeInTheDocument());
   });
 
   it('changes market currency only after the FX and repricing warning is confirmed', async () => {
@@ -189,7 +216,7 @@ describe('Settings flow (mocked API responses, labeled)', () => {
     const view = render(<RouterShell initialPath="/settings"><Routes><Route path="/settings" element={<SettingsPage />} /></Routes></RouterShell>);
     await user.click(await screen.findByRole('combobox', { name: 'اللغة' }));
     await user.click(screen.getByRole('option', { name: 'English' }));
-    expect(await screen.findByRole('heading', { name: 'Current policy snapshot' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Booking policy settings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Cities' })).toBeInTheDocument();
     expect(document.documentElement).toHaveAttribute('lang', 'en');
     expect(document.documentElement).toHaveAttribute('dir', 'ltr');
@@ -197,7 +224,7 @@ describe('Settings flow (mocked API responses, labeled)', () => {
 
     view.unmount();
     render(<RouterShell initialPath="/settings"><Routes><Route path="/settings" element={<SettingsPage />} /></Routes></RouterShell>);
-    expect(await screen.findByRole('heading', { name: 'Current policy snapshot' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Booking policy settings' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Language' })).toHaveTextContent('English');
   });
 });

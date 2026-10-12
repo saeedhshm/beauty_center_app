@@ -20,8 +20,9 @@ const addressFields = {
 export class CatalogRepository {
   constructor(private readonly db: Database | Transaction) {}
   transaction<T>(work: (repo: CatalogRepository) => Promise<T>) { return this.db.transaction((tx) => work(new CatalogRepository(tx))); }
-  async city(id: number) {
-    const [row] = await this.db.select().from(cities).where(eq(cities.id, id));
+  async city(id: number, lock = false) {
+    const query = this.db.select().from(cities).where(eq(cities.id, id));
+    const [row] = await (lock ? query.for('update') : query);
     return row;
   }
   async launchCity() {
@@ -38,6 +39,9 @@ export class CatalogRepository {
   async changeCity(id: number, isActive: boolean) {
     const [row] = await this.db.update(cities).set({ isActive, updatedAt: new Date() }).where(eq(cities.id, id)).returning();
     return row!;
+  }
+  async removeCity(id: number) {
+    await this.db.delete(cities).where(eq(cities.id, id));
   }
   async policy(lock = false) {
     const q = this.db.select().from(settings).where(eq(settings.key, 'booking_policy'));
