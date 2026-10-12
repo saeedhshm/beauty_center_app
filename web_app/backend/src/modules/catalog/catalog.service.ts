@@ -3,25 +3,40 @@ import { MARKET } from '../../config/market.js';
 import { AppError } from '../../shared/app-error.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { CatalogRepository } from './catalog.repository.js';
-import { bookingPolicySchema, type addressPatchSchema, type policyPatchSchema, type servicePatchSchema, type AddressInput, type ExpertPatch, type ExpertQuery, type Page, type ServiceInput } from './catalog.validation.js';
+import { bookingPolicySchema, marketSettingsSchema, type addressPatchSchema, type policyPatchSchema, type servicePatchSchema, type AddressInput, type CityInput, type ExpertPatch, type ExpertQuery, type Page, type ServiceInput } from './catalog.validation.js';
 
 const requireRole = (user: AuthenticatedUser, role: string) => { if (user.role !== role) throw new AppError(403, 'FORBIDDEN', 'ليس لديك صلاحية لهذه العملية'); };
 const notFound = () => new AppError(404, 'NOT_FOUND', 'البيانات المطلوبة غير موجودة');
 const paginate = <T>(rows: T[], page: Page) => ({ items: rows.slice(0, page.limit), pagination: { ...page, hasNext: rows.length > page.limit } });
 const serviceDto = (row: { id: number; name: string; description: string | null; durationMin: number; isActive: boolean }) => ({ id: row.id, name: row.name, description: row.description, durationMin: row.durationMin, isActive: row.isActive });
+const cityDto = (row: { id: number; name: string; code: string | null; isActive: boolean }) => ({ id: row.id, name: row.name, code: row.code, isActive: row.isActive });
+const isUniqueViolation = (error: unknown) => (error as { code?: string })?.code === '23505'
+  || (error as { cause?: { code?: string } })?.cause?.code === '23505';
 
 export class CatalogService {
   constructor(private readonly repo: CatalogRepository) {}
 
   async configuration() {
-    const city = await this.repo.city();
-    const policy = await this.repo.policy();
-    if (!city || !policy) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
-    return { launchCity: { id: city.id, name: city.name, code: city.code, isActive: city.isActive }, currency: MARKET.currency, timeZone: MARKET.timeZone, paymentMode: MARKET.paymentMode, daytimeOnly: MARKET.daytimeOnly, bookingPolicy: bookingPolicySchema.parse(policy.value) };
+    const [city, cities, policy, market] = await Promise.all([this.repo.launchCity(), this.repo.listCities(true), this.repo.policy(), this.repo.market()]);
+    if (!city || !policy || !market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+    return { launchCity: cityDto(city), cities: cities.map(cityDto), currency: marketSettingsSchema.parse(market.value).currency, timeZone: MARKET.timeZone, paymentMode: MARKET.paymentMode, daytimeOnly: MARKET.daytimeOnly, bookingPolicy: bookingPolicySchema.parse(policy.value) };
   }
   async listCities(admin = false) {
-    const city = await this.repo.city();
-    return city && (admin || city.isActive) ? [{ id: city.id, name: city.name, code: city.code, isActive: city.isActive }] : [];
+    return (await this.repo.listCities(!admin)).map(cityDto);
+  }
+  async createCity(actor: AuthenticatedUser, input: CityInput) {
+    requireRole(actor, 'admin');
+    try {
+      return await this.repo.transaction(async (repo) => {
+        const city = await repo.addCity(input);
+        const dto = cityDto(city);
+        await repo.audit(actor.id, 'city.created', 'city', String(city.id), { after: dto });
+        return dto;
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new AppError(409, 'CITY_ALREADY_EXISTS', 'اسم المدينة أو رمزها مستخدم بالفعل');
+      throw error;
+    }
   }
   async updatePolicy(actor: AuthenticatedUser, patch: z.infer<typeof policyPatchSchema>) {
     requireRole(actor, 'admin');
@@ -40,8 +55,20 @@ export class CatalogService {
     return this.repo.transaction(async (repo) => {
       const city = await repo.city(id); if (!city) throw notFound();
       const after = await repo.changeCity(id, isActive);
-      await repo.audit(actor.id, 'city.updated', 'city', String(id), { isActive });
-      return { id: after.id, name: after.name, code: after.code, isActive: after.isActive };
+      await repo.audit(actor.id, 'city.updated', 'city', String(id), { before: { isActive: city.isActive }, after: { isActive } });
+      return cityDto(after);
+    });
+  }
+  async updateCurrency(actor: AuthenticatedUser, currency: 'EGP' | 'SAR') {
+    requireRole(actor, 'admin');
+    return this.repo.transaction(async (repo) => {
+      const row = await repo.market('update');
+      if (!row) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+      const before = marketSettingsSchema.parse(row.value);
+      const after = { currency } as const;
+      await repo.changeMarket(after);
+      await repo.audit(actor.id, 'market.currency_updated', 'settings', 'market', { before, after });
+      return after;
     });
   }
   async listServices(page: Page, admin?: AuthenticatedUser) {
@@ -68,7 +95,7 @@ export class CatalogService {
   }
   private async activeCity(repo: CatalogRepository, id: number) {
     const city = await repo.city(id);
-    if (!city?.isActive) throw new AppError(409, 'CITY_UNAVAILABLE', 'الخدمة متاحة في القاهرة المفعّلة فقط');
+    if (!city?.isActive) throw new AppError(409, 'CITY_UNAVAILABLE', 'المدينة غير متاحة حاليًا');
   }
   private async lockActor(repo: CatalogRepository, actor: AuthenticatedUser, role: string) {
     requireRole(actor, role);
@@ -89,17 +116,31 @@ export class CatalogService {
   async ownPrices(actor: AuthenticatedUser) { requireRole(actor, 'expert'); return this.repo.expertPrices(actor.id); }
   async putOwnPrice(actor: AuthenticatedUser, serviceId: number, input: { price: string; isActive: boolean }) {
     return this.repo.transaction(async (repo) => {
+      const market = await repo.market('share');
+      if (!market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+      const currency = marketSettingsSchema.parse(market.value).currency;
       await this.lockActor(repo, actor, 'expert');
       const service = await repo.service(serviceId, true);
       if (!service) throw notFound();
       if (input.isActive && !service.isActive) throw new AppError(409, 'SERVICE_UNAVAILABLE', 'الخدمة معطلة');
-      return repo.putPrice(actor.id, serviceId, input.price, input.isActive);
+      return repo.putPrice(actor.id, serviceId, input.price, input.isActive, currency);
     });
   }
-  async listExperts(query: ExpertQuery) { return paginate(await this.repo.publicExperts(query), { page: query.page, limit: query.limit }); }
+  async listExperts(query: ExpertQuery) {
+    return this.repo.transaction(async (repo) => {
+      const market = await repo.market('share');
+      if (!market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+      return paginate(await repo.publicExperts(query, marketSettingsSchema.parse(market.value).currency), { page: query.page, limit: query.limit });
+    });
+  }
   async expert(id: string) {
-    const expert = await this.repo.publicExpert(id); if (!expert) throw notFound();
-    return { ...expert, services: await this.repo.expertPrices(id, true) };
+    return this.repo.transaction(async (repo) => {
+      const market = await repo.market('share');
+      if (!market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+      const currency = marketSettingsSchema.parse(market.value).currency;
+      const expert = await repo.publicExpert(id, currency); if (!expert) throw notFound();
+      return { ...expert, services: await repo.expertPrices(id, true, currency) };
+    });
   }
   async adminExperts(actor: AuthenticatedUser, page: Page, status?: string) {
     requireRole(actor, 'admin'); return paginate(await this.repo.adminExperts(page, status), page);

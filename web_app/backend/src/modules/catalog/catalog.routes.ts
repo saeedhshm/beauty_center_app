@@ -24,7 +24,9 @@ export function catalogRoutes(service: CatalogService, auth: AuthService) {
   router.use('/admin', authenticate(auth, 'admin'), authorize('admin'));
   router.get('/admin/settings', c.adminSettings);
   router.patch('/admin/settings', c.editSettings);
+  router.patch('/admin/settings/currency', c.editCurrency);
   router.get('/admin/cities', c.adminCities);
+  router.post('/admin/cities', c.addCity);
   router.patch('/admin/cities/:id', c.editCity);
   router.get('/admin/services', c.adminServices);
   router.post('/admin/services', c.addService);

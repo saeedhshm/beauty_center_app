@@ -60,10 +60,10 @@ async function harness() {
     expect(result.status).toBe(201);
     return result.body.data;
   }
-  async function readyExpert(durationMin = 60) {
+  async function readyExpert(durationMin = 60, targetCityId = cityId) {
     const expert = await register('expert');
     const service = (await request(app).post('/api/v1/admin/services').auth(admin.accessToken, { type: 'bearer' }).send({ name: `Service ${randomUUID()}`, durationMin })).body.data;
-    await request(app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ cityId, bio: 'scheduling fixture' });
+    await request(app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ cityId: targetCityId, bio: 'scheduling fixture' });
     await request(app).put(`/api/v1/experts/me/services/${service.id}`).auth(expert.accessToken, { type: 'bearer' }).send({ price: '300.50' });
     await request(app).post(`/api/v1/admin/experts/${expert.user.id}/approve`).auth(admin.accessToken, { type: 'bearer' });
     await request(app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ isAcceptingBookings: true });
@@ -71,11 +71,35 @@ async function harness() {
     const schedule = await request(app).put('/api/v1/experts/me/availability').auth(expert.accessToken, { type: 'bearer' }).send({ slots: week });
     expect(schedule.status).toBe(200);
     const customer = await register('customer');
-    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId: targetCityId, label: 'home', addressText: 'Synthetic service address', isDefault: true })).body.data;
     return { expert, customer, service, address };
   }
-  return { app, admin, cityId, register, readyExpert };
+  return { app, admin, adminId, cityId, register, readyExpert };
 }
+
+it('offers catalog, availability and booking in every active managed city', async () => {
+  const h = await harness();
+  const suffix = randomInt(100000, 999999).toString();
+  const city = (await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' })
+    .send({ name: `مدينة جديدة ${suffix}`, code: `EG-N${suffix}` })).body.data;
+  await request(h.app).patch(`/api/v1/admin/cities/${city.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
+  try {
+    const { expert, customer, service, address } = await h.readyExpert(60, city.id);
+    const listed = await request(h.app).get('/api/v1/experts').query({ cityId: city.id, serviceId: service.id });
+    expect(listed.status).toBe(200);
+    expect(listed.body.data.items).toContainEqual(expect.objectContaining({ id: expert.user.id, cityId: city.id }));
+    const from = tomorrowCairo();
+    const slots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
+    expect(slots.length).toBeGreaterThan(0);
+    const booking = await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({
+      expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: slots[0].startsAt,
+    });
+    expect(booking.status).toBe(201);
+    expect(booking.body.data).toMatchObject({ cityId: city.id, timeZone: 'Africa/Cairo' });
+  } finally {
+    await request(h.app).patch(`/api/v1/admin/cities/${city.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: false });
+  }
+});
 
 it('validates weekly schedules and reflects exceptions in offered slots', async () => {
   const h = await harness();
@@ -139,6 +163,55 @@ it('creates pending bookings with server snapshots and accepts them through the 
   const frozen = await request(h.app).get(`/api/v1/bookings/${id}`).auth(customer.accessToken, { type: 'bearer' });
   expect(frozen.body.data).toMatchObject({ price: '300.50', totalAmount: '300.50' });
   expect(toCents(frozen.body.data.commissionAmount) + toCents(frozen.body.data.expertEarning)).toBe(toCents('300.50'));
+});
+
+it('switches market currency without rewriting history and requires explicit expert repricing', async () => {
+  const h = await harness();
+  const { expert, customer, service, address } = await h.readyExpert();
+  const from = tomorrowCairo();
+  const initialSlots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
+  const oldBooking = (await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({
+    expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: initialSlots[0].startsAt,
+  })).body.data;
+  const paymentId = randomUUID();
+  const payoutId = randomUUID();
+  await pool.query("insert into payments(id,booking_id,amount,currency,status,provider) values($1,$2,$3,'EGP','pending','test-history')", [paymentId, oldBooking.id, oldBooking.totalAmount]);
+  await pool.query("insert into payouts(id,expert_id,amount,currency) values($1,$2,$3,'EGP')", [payoutId, expert.user.id, oldBooking.expertEarning]);
+
+  try {
+    expect((await request(h.app).patch('/api/v1/admin/settings/currency').auth(h.admin.accessToken, { type: 'bearer' }).send({ currency: 'USD' })).status).toBe(422);
+    const switched = await request(h.app).patch('/api/v1/admin/settings/currency').auth(h.admin.accessToken, { type: 'bearer' }).send({ currency: 'SAR' });
+    expect(switched.status).toBe(200);
+    expect(switched.body.data).toEqual({ currency: 'SAR' });
+    expect((await request(h.app).get('/api/v1/configuration')).body.data.currency).toBe('SAR');
+    expect((await request(h.app).get(`/api/v1/experts/${expert.user.id}`)).status).toBe(404);
+    expect((await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).status).toBe(404);
+    const unavailable = await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({
+      expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: initialSlots[1].startsAt,
+    });
+    expect(unavailable.status).toBe(409);
+    expect(unavailable.body.error.code).toBe('SERVICE_UNAVAILABLE');
+    expect((await pool.query('select currency from bookings where id=$1', [oldBooking.id])).rows[0].currency).toBe('EGP');
+    expect((await pool.query('select currency from payments where id=$1', [paymentId])).rows[0].currency).toBe('EGP');
+    expect((await pool.query('select currency from payouts where id=$1', [payoutId])).rows[0].currency).toBe('EGP');
+    expect((await pool.query('select currency from expert_services where expert_id=$1 and service_id=$2', [expert.user.id, service.id])).rows[0].currency).toBe('EGP');
+
+    const repriced = await request(h.app).put(`/api/v1/experts/me/services/${service.id}`).auth(expert.accessToken, { type: 'bearer' }).send({ price: '325.00' });
+    expect(repriced.status).toBe(200);
+    expect(repriced.body.data).toMatchObject({ price: '325.00', currency: 'SAR' });
+    const newSlots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
+    const created = await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({
+      expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: newSlots[1].startsAt,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data).toMatchObject({ currency: 'SAR', price: '325.00', totalAmount: '325.00' });
+    expect((await pool.query('select currency from bookings where id=$1', [oldBooking.id])).rows[0].currency).toBe('EGP');
+    const audits = await pool.query("select details from admin_audit_logs where actor_id=$1 and action='market.currency_updated' order by created_at desc limit 1", [h.adminId]);
+    expect(audits.rows[0].details).toEqual({ before: { currency: 'EGP' }, after: { currency: 'SAR' } });
+  } finally {
+    await request(h.app).patch('/api/v1/admin/settings/currency').auth(h.admin.accessToken, { type: 'bearer' }).send({ currency: 'EGP' });
+    await request(h.app).put(`/api/v1/experts/me/services/${service.id}`).auth(expert.accessToken, { type: 'bearer' }).send({ price: '300.50' });
+  }
 });
 
 it('blocks concurrent accepts on the same period and keeps the loser pending', async () => {

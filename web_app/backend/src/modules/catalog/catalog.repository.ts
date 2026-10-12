@@ -4,7 +4,7 @@ import type { createDatabase } from '../../db/client.js';
 import { cities, customerAddresses, expertProfiles, expertServices, portfolioImages, services, settings, users } from '../../db/schema/core.js';
 import { adminAuditLogs } from '../../db/schema/admin.js';
 import { MARKET } from '../../config/market.js';
-import type { addressPatchSchema, servicePatchSchema, ExpertQuery, Page } from './catalog.validation.js';
+import type { addressPatchSchema, servicePatchSchema, CityInput, ExpertQuery, Page } from './catalog.validation.js';
 
 type Database = ReturnType<typeof createDatabase>['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -20,9 +20,20 @@ const addressFields = {
 export class CatalogRepository {
   constructor(private readonly db: Database | Transaction) {}
   transaction<T>(work: (repo: CatalogRepository) => Promise<T>) { return this.db.transaction((tx) => work(new CatalogRepository(tx))); }
-  async city(id?: number) {
-    const [row] = await this.db.select().from(cities).where(and(eq(cities.code, MARKET.cityCode), id === undefined ? undefined : eq(cities.id, id)));
+  async city(id: number) {
+    const [row] = await this.db.select().from(cities).where(eq(cities.id, id));
     return row;
+  }
+  async launchCity() {
+    const [row] = await this.db.select().from(cities).where(eq(cities.code, MARKET.cityCode));
+    return row;
+  }
+  listCities(activeOnly = false) {
+    return this.db.select().from(cities).where(activeOnly ? eq(cities.isActive, true) : undefined).orderBy(asc(cities.name), asc(cities.id));
+  }
+  async addCity(input: CityInput) {
+    const [row] = await this.db.insert(cities).values({ ...input, isActive: false }).returning();
+    return row!;
   }
   async changeCity(id: number, isActive: boolean) {
     const [row] = await this.db.update(cities).set({ isActive, updatedAt: new Date() }).where(eq(cities.id, id)).returning();
@@ -35,6 +46,14 @@ export class CatalogRepository {
   }
   async changePolicy(value: unknown) {
     await this.db.update(settings).set({ value, updatedAt: new Date() }).where(eq(settings.key, 'booking_policy'));
+  }
+  async market(lock: 'share' | 'update' | false = false) {
+    const q = this.db.select().from(settings).where(eq(settings.key, 'market'));
+    const [row] = await (lock ? q.for(lock) : q);
+    return row;
+  }
+  async changeMarket(value: unknown) {
+    await this.db.update(settings).set({ value, updatedAt: new Date() }).where(eq(settings.key, 'market'));
   }
   listServices(page: Page, admin = false) {
     return this.db.select({ id: services.id, name: services.name, description: services.description, durationMin: services.durationMin, isActive: services.isActive })
@@ -64,31 +83,36 @@ export class CatalogRepository {
     if (Object.keys(profileValues).length) await this.db.update(expertProfiles).set({ ...profileValues, updatedAt: new Date() }).where(eq(expertProfiles.userId, id));
     return this.profile(id);
   }
-  expertPrices(id: string, publicOnly = false) {
+  expertPrices(id: string, publicOnly = false, currency?: string) {
     return this.db.select({ serviceId: services.id, name: services.name, description: services.description, durationMin: services.durationMin, price: expertServices.price, currency: expertServices.currency, isActive: expertServices.isActive, serviceIsActive: services.isActive })
       .from(expertServices).innerJoin(services, eq(services.id, expertServices.serviceId))
-      .where(and(eq(expertServices.expertId, id), publicOnly ? and(eq(services.isActive, true), eq(expertServices.isActive, true), eq(expertServices.currency, MARKET.currency)) : undefined)).orderBy(asc(services.id));
+      .where(and(eq(expertServices.expertId, id), publicOnly ? and(eq(services.isActive, true), eq(expertServices.isActive, true), eq(expertServices.currency, currency!)) : undefined)).orderBy(asc(services.id));
   }
-  async putPrice(expertId: string, serviceId: number, price: string, isActive: boolean) {
-    const [row] = await this.db.insert(expertServices).values({ expertId, serviceId, price, isActive, currency: MARKET.currency })
-      .onConflictDoUpdate({ target: [expertServices.expertId, expertServices.serviceId], set: { price, isActive, currency: MARKET.currency, updatedAt: new Date() } }).returning();
+  async putPrice(expertId: string, serviceId: number, price: string, isActive: boolean, currency: string) {
+    const [row] = await this.db.insert(expertServices).values({ expertId, serviceId, price, isActive, currency })
+      .onConflictDoUpdate({ target: [expertServices.expertId, expertServices.serviceId], set: { price, isActive, currency, updatedAt: new Date() } }).returning();
     return { expertId: row!.expertId, serviceId: row!.serviceId, price: row!.price, currency: row!.currency, isActive: row!.isActive };
   }
-  private published(query?: ExpertQuery) {
+  private published(currency: string, query?: ExpertQuery) {
     const offered = this.db.select({ id: expertServices.serviceId }).from(expertServices).innerJoin(services, eq(services.id, expertServices.serviceId))
-      .where(and(eq(expertServices.expertId, users.id), eq(expertServices.isActive, true), eq(services.isActive, true), eq(expertServices.currency, MARKET.currency), query?.serviceId ? eq(services.id, query.serviceId) : undefined));
+      .where(and(eq(expertServices.expertId, users.id), eq(expertServices.isActive, true), eq(services.isActive, true), eq(expertServices.currency, currency), query?.serviceId ? eq(services.id, query.serviceId) : undefined));
     return and(eq(users.role, 'expert'), eq(users.isActive, true), eq(expertProfiles.approvalStatus, 'approved'), eq(expertProfiles.isAcceptingBookings, true),
-      eq(cities.code, MARKET.cityCode), eq(cities.isActive, true), exists(offered),
+      eq(cities.isActive, true), exists(offered),
       query?.cityId ? eq(users.cityId, query.cityId) : undefined,
       query?.q ? ilike(users.name, `%${query.q.replace(/[\\%_]/g, '\\$&')}%`) : undefined);
   }
-  publicExperts(query: ExpertQuery) {
+  publicExperts(query: ExpertQuery, currency: string) {
     return this.db.select(publicExpertFields).from(users).innerJoin(expertProfiles, eq(users.id, expertProfiles.userId)).innerJoin(cities, eq(users.cityId, cities.id))
-      .where(this.published(query)).orderBy(asc(users.name), asc(users.id)).limit(query.limit + 1).offset((query.page - 1) * query.limit);
+      .where(this.published(currency, query)).orderBy(asc(users.name), asc(users.id)).limit(query.limit + 1).offset((query.page - 1) * query.limit);
   }
-  async publicExpert(id: string) {
+  async publicExpert(id: string, currency?: string) {
+    if (!currency) {
+      const value = (await this.market())?.value as { currency?: unknown } | undefined;
+      if (value?.currency !== 'EGP' && value?.currency !== 'SAR') return undefined;
+      currency = value.currency;
+    }
     const [row] = await this.db.select(publicExpertFields).from(users).innerJoin(expertProfiles, eq(users.id, expertProfiles.userId)).innerJoin(cities, eq(users.cityId, cities.id))
-      .where(and(eq(users.id, id), this.published())); return row;
+      .where(and(eq(users.id, id), this.published(currency))); return row;
   }
   adminExperts(page: Page, status?: string) {
     return this.db.select({ ...publicExpertFields, phone: users.phone, isActive: users.isActive, approvalStatus: expertProfiles.approvalStatus, isAcceptingBookings: expertProfiles.isAcceptingBookings })

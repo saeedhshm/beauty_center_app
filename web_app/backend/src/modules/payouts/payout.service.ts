@@ -22,7 +22,8 @@ const sumByCurrency = (rows: Array<{ amount?: string; expertEarning?: string; cu
   const totals = new Map<string, bigint>();
   for (const row of rows) {
     const cents = moneyToCents(row.amount ?? row.expertEarning ?? '0.00');
-    totals.set(row.currency ?? 'EGP', (totals.get(row.currency ?? 'EGP') ?? 0n) + cents);
+    if (!row.currency) throw new AppError(500, 'INVALID_FINANCIAL_DATA', 'سجل مالي بلا عملة');
+    totals.set(row.currency, (totals.get(row.currency) ?? 0n) + cents);
   }
   return [...totals.entries()].map(([currency, cents]) => ({ currency, amount: centsToMoney(cents) }));
 };

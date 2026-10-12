@@ -3,7 +3,7 @@ import { AppError } from '../../shared/app-error.js';
 import { cairoDateString, cairoWeekday, parseLocalDate } from '../../shared/cairo-time.js';
 import { splitCommission } from '../../shared/money.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
-import { bookingPolicySchema } from '../catalog/catalog.validation.js';
+import { bookingPolicySchema, marketSettingsSchema } from '../catalog/catalog.validation.js';
 import { AvailabilityRepository } from '../availability/availability.repository.js';
 import { workingIntervals } from '../availability/availability.service.js';
 import { NOTIFICATION_TYPES, type NotificationType } from '../notifications/notification.content.js';
@@ -120,16 +120,21 @@ export class BookingService {
 
   private async createBooking(actor: AuthenticatedUser, input: BookingCreateInput, startsAt: Date, now: Date) {
     return this.repo.transaction(async (repo) => {
+      // A shared row lock makes the snapshot use either the old or new market
+      // currency atomically with respect to an administrator switch.
+      const market = await repo.market('share');
+      if (!market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+      const currency = marketSettingsSchema.parse(market.value).currency;
       const customer = await repo.lockUser(actor.id);
       if (!customer || customer.role !== 'customer' || !customer.isActive) throw new AppError(403, 'FORBIDDEN', 'الحساب غير مؤهل لهذه العملية');
       const address = await repo.address(actor.id, input.addressId);
       if (!address) throw notFound();
-      if (!await repo.activeCity(address.cityId)) throw new AppError(409, 'CITY_UNAVAILABLE', 'الخدمة متاحة في القاهرة المفعّلة فقط');
-      if (!await repo.bookableExpert(input.expertId)) throw new AppError(409, 'EXPERT_UNAVAILABLE', 'الخبيرة غير متاحة للحجز حاليًا');
+      if (!await repo.activeCity(address.cityId)) throw new AppError(409, 'CITY_UNAVAILABLE', 'المدينة غير متاحة حاليًا');
+      if (!await repo.bookableExpert(input.expertId, address.cityId)) throw new AppError(409, 'EXPERT_UNAVAILABLE', 'الخبيرة غير متاحة للحجز في هذه المدينة حاليًا');
       const service = await repo.service(input.serviceId);
       if (!service?.isActive) throw new AppError(409, 'SERVICE_UNAVAILABLE', 'الخدمة غير متاحة حاليًا');
       const offer = await repo.expertOffer(input.expertId, input.serviceId);
-      if (!offer?.isActive || offer.currency !== 'EGP') throw new AppError(409, 'SERVICE_UNAVAILABLE', 'الخبيرة لا تقدم هذه الخدمة بالجنيه حاليًا');
+      if (!offer?.isActive || offer.currency !== currency) throw new AppError(409, 'SERVICE_UNAVAILABLE', 'يلزم إعادة تسعير الخدمة بعملة السوق الحالية');
       const endsAt = new Date(startsAt.getTime() + service.durationMin * 60000);
       if (!await this.coverage(input.expertId, startsAt, endsAt)) {
         throw new AppError(409, 'SLOT_UNAVAILABLE', 'الموعد خارج أوقات عمل الخبيرة، اختاري موعدًا من المواعيد المتاحة');
@@ -144,7 +149,7 @@ export class BookingService {
         expiresAt: new Date(now.getTime() + policy.acceptanceTimeoutMinutes * 60000),
         addressText: address.addressText, cityId: address.cityId, lat: address.lat, lng: address.lng,
         price: offer.price, commissionRate: policy.commissionRate, commissionAmount, expertEarning,
-        vatRate: '0.0000', vatAmount: '0.00', totalAmount: offer.price, currency: 'EGP',
+        vatRate: '0.0000', vatAmount: '0.00', totalAmount: offer.price, currency,
         notes: input.notes ?? null,
       });
       await repo.addHistory(booking.id, 'pending', actor.id);
@@ -181,7 +186,7 @@ export class BookingService {
         // Revalidate eligibility at accept time: a pending request must not
         // bypass a suspension that landed after creation. Locked read
         // serializes against a concurrent admin decision.
-        if (!await repo.lockBookableExpert(booking.expertId)) {
+        if (!await repo.lockBookableExpert(booking.expertId, booking.cityId)) {
           throw new AppError(409, 'EXPERT_UNAVAILABLE', 'الخبيرة غير متاحة للحجز حاليًا');
         }
         const endsAt = booking.endsAt;

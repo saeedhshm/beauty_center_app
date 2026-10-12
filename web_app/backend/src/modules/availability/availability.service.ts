@@ -4,6 +4,7 @@ import {
   addLocalDays, cairoDateString, cairoWallToUtc, cairoWeekday, formatLocalDate, minutesOf, parseLocalDate,
 } from '../../shared/cairo-time.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
+import { marketSettingsSchema } from '../catalog/catalog.validation.js';
 import { AvailabilityRepository } from './availability.repository.js';
 import type { ExceptionInput, SlotsQuery, WeeklyScheduleInput } from './availability.validation.js';
 
@@ -131,11 +132,18 @@ export class AvailabilityService {
   }
 
   async slots(expertId: string, query: SlotsQuery, now = new Date()) {
-    const service = await this.repo.service(query.serviceId);
+    return this.repo.transaction((repo) => this.slotsWithRepository(repo, expertId, query, now));
+  }
+
+  private async slotsWithRepository(repo: AvailabilityRepository, expertId: string, query: SlotsQuery, now: Date) {
+    const market = await repo.market('share');
+    if (!market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
+    const currency = marketSettingsSchema.parse(market.value).currency;
+    const service = await repo.service(query.serviceId);
     if (!service?.isActive) throw notFound();
-    const offered = await this.repo.expertPrice(expertId, query.serviceId);
-    if (!offered?.isActive || offered.currency !== 'EGP') throw notFound();
-    if (!await this.repo.isPublished(expertId)) throw notFound();
+    const offered = await repo.expertPrice(expertId, query.serviceId);
+    if (!offered?.isActive || offered.currency !== currency) throw notFound();
+    if (!await repo.isPublished(expertId)) throw notFound();
     const durationMin = service.durationMin;
 
     const from = parseLocalDate(query.from);
@@ -148,9 +156,9 @@ export class AvailabilityService {
     const endCursor = addLocalDays(to, 1);
     const rangeEnd = cairoWallToUtc(endCursor.year, endCursor.month, endCursor.day, 0, 0);
     const [weekly, dayExceptions, blocking] = await Promise.all([
-      this.repo.weekly(expertId),
-      this.repo.exceptions(expertId, formatLocalDate(cursor), query.to),
-      this.repo.blockingBookings(expertId, rangeStart, rangeEnd),
+      repo.weekly(expertId),
+      repo.exceptions(expertId, formatLocalDate(cursor), query.to),
+      repo.blockingBookings(expertId, rangeStart, rangeEnd),
     ]);
     const blocked = blocking.map((b) => [b.startsAt.getTime(), b.endsAt.getTime()] as [number, number]);
 

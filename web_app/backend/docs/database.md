@@ -6,6 +6,7 @@
 - تعريف الجداول: `src/db/schema/core.ts` و`bookings.ts` و`engagement.ts`.
 - أُضيف `src/db/schema/auth.ts` للجداول التقنية الأربعة للمصادقة، و`users.phone_verified_at` عبر migration `0003_phone_password_auth.sql`. بلغ الإجمالي حينها 21 جدولًا؛ تفاصيل الجلسات والتحقق في `auth.md`.
 - تحديث القاهرة: أُضيف `admin_audit_logs` وaudience للجلسات ورمز للمدينة وعملة لأسعار الخبيرات، عبر `0004`، وتهيئة سياسة الإطلاق عبر `0005`. الإجمالي الحالي 22 جدولًا؛ راجع `catalog.md`. السجلات السابقة لا تُحوّل من SAR إلى EGP تلقائيًا.
+- `0012_managed_market_settings.sql` يحفظ عملة السوق الحالية في `settings.market` بقيمة أولية EGP دون إعادة كتابة أي لقطة مالية أو عرض؛ العملة قابلة للتبديل إلى SAR فقط عبر API الإدارة المدقق.
 - migration `0006` تضيف لقطة timezone للحجز للحفاظ على سياق العرض التاريخي؛ لا تُعدّل الأوقات المطلقة للحجوزات القديمة. توثيق أسلوب backfill في `catalog.md`.
 - migration `0007_availability_time_order` تضيف `end_time > start_time` للجدول الأسبوعي
   وللاستثناءات الجزئية (الفارغة معًا ليوم كامل مستثناة). ولّدها Drizzle Kit من تعريفات

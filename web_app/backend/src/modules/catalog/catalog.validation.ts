@@ -24,6 +24,8 @@ export const bookingPolicySchema = z.object({
 }).strict();
 export const policyPatchSchema = bookingPolicySchema.partial().refine((v) => Object.keys(v).length > 0);
 export type BookingPolicy = z.infer<typeof bookingPolicySchema>;
+export const marketSettingsSchema = z.object({ currency: z.enum(['EGP', 'SAR']) }).strict();
+export const currencyPatchSchema = marketSettingsSchema;
 
 export const serviceSchema = z.object({
   name: z.string().trim().min(2).max(100),
@@ -33,6 +35,11 @@ export const serviceSchema = z.object({
 }).strict();
 export const servicePatchSchema = serviceSchema.partial().extend({ isActive: z.boolean().optional() }).refine((v) => Object.keys(v).length > 0);
 export const cityPatchSchema = z.object({ isActive: z.boolean() }).strict();
+export const citySchema = z.object({
+  name: z.string().trim().min(2).max(100)
+    .regex(/^[\p{Script=Arabic}\p{N}][\p{Script=Arabic}\p{N}\p{M} .'-]*$/u, 'استخدمي اسمًا عربيًا صالحًا للعرض'),
+  code: z.string().regex(/^[A-Z]{2}-[A-Z0-9]{2,12}$/, 'استخدمي رمزًا ثابتًا مثل EG-ALX'),
+}).strict();
 export const expertPatchSchema = z.object({
   name: z.string().trim().min(2).max(100).optional(),
   bio: z.string().trim().max(2000).nullable().optional(),
@@ -58,5 +65,6 @@ export const addressPatchSchema = addressObject.partial().extend({ isDefault: z.
   .refine((v) => Object.keys(v).length > 0);
 
 export type ServiceInput = z.infer<typeof serviceSchema>;
+export type CityInput = z.infer<typeof citySchema>;
 export type ExpertPatch = z.infer<typeof expertPatchSchema>;
 export type AddressInput = z.infer<typeof addressSchema>;

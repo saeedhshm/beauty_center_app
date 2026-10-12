@@ -257,7 +257,7 @@ components:
         id: { type: string, format: uuid }
         expertId: { type: string, format: uuid }
         amount: { type: string, description: 'Decimal string, the sum of linked expert earnings' }
-        currency: { type: string, const: EGP }
+        currency: { type: string, enum: [EGP, SAR] }
         transferRef: { type: [string, 'null'], description: Operations reference of the manual transfer }
         transferredAt: { type: [string, 'null'], format: date-time, description: Null means recorded but not transferred }
         createdAt: { type: string, format: date-time }

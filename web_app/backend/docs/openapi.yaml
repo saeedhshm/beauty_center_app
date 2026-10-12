@@ -3,7 +3,8 @@ info:
   title: Lamsa Backend API
   version: 0.7.0
   description: >-
-    Cairo launch in EGP and Africa/Cairo, mobile and admin authentication,
+    Managed active cities, EGP/SAR market currency and Africa/Cairo time zone,
+    mobile and admin authentication,
     catalog, expert approval, customer addresses, editable booking policy,
     expert availability with slots, the booking state machine with history,
     demo payments and refunds, expert payouts, mutual reviews and the
@@ -572,6 +573,8 @@ paths:
     $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1me'
   /api/v1/admin/settings:
     $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1settings'
+  /api/v1/admin/settings/currency:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1settings~1currency'
   /api/v1/admin/cities:
     $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1cities'
   /api/v1/admin/cities/{id}:

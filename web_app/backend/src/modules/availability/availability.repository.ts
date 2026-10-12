@@ -1,8 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import type { createDatabase } from '../../db/client.js';
-import { cities, expertAvailability, expertAvailabilityExceptions, expertProfiles, expertServices, services, users } from '../../db/schema/core.js';
+import { cities, expertAvailability, expertAvailabilityExceptions, expertProfiles, expertServices, services, settings, users } from '../../db/schema/core.js';
 import { bookings } from '../../db/schema/bookings.js';
-import { MARKET } from '../../config/market.js';
 
 type Database = ReturnType<typeof createDatabase>['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -33,6 +32,12 @@ export class AvailabilityRepository {
     return row;
   }
 
+  async market(lock: 'share' | false = false) {
+    const q = this.db.select().from(settings).where(eq(settings.key, 'market'));
+    const [row] = await (lock ? q.for(lock) : q);
+    return row;
+  }
+
   async isPublished(expertId: string): Promise<boolean> {
     const [row] = await this.db.select({ id: users.id }).from(users)
       .innerJoin(expertProfiles, eq(users.id, expertProfiles.userId))
@@ -40,7 +45,7 @@ export class AvailabilityRepository {
       .where(and(
         eq(users.id, expertId), eq(users.role, 'expert'), eq(users.isActive, true),
         eq(expertProfiles.approvalStatus, 'approved'), eq(expertProfiles.isAcceptingBookings, true),
-        eq(cities.code, MARKET.cityCode), eq(cities.isActive, true),
+        eq(cities.isActive, true),
       )).limit(1);
     return !!row;
   }

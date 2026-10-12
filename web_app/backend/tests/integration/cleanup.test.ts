@@ -11,9 +11,10 @@ afterAll(async () => { await database.close(); await pool.end(); });
 const phone = () => `+2010${randomInt(0, 100000000).toString().padStart(8, '0')}`;
 
 it('prunes only expired technical rows and preserves business and account history', async () => {
+  const cleanupAt = new Date();
   // auth_rate_limits is shared across files in one run and other files leave 60s-window
   // rows that may expire before this file runs: baseline them BEFORE inserting fixtures.
-  const baselineExpiredRateLimits = (await pool.query('select count(*)::int as total from auth_rate_limits where resets_at < now()')).rows[0].total as number;
+  const baselineExpiredRateLimits = (await pool.query('select count(*)::int as total from auth_rate_limits where resets_at < $1', [cleanupAt])).rows[0].total as number;
   const userId = randomUUID();
   await pool.query("insert into users (id, name, phone, role) values ($1, 'Cleanup fixture', $2, 'customer')", [userId, phone()]);
   // Expired OTP challenge (past the 24h grace) and a fresh one.
@@ -42,7 +43,7 @@ it('prunes only expired technical rows and preserves business and account histor
   await pool.query("insert into notifications (id, user_id, type, title, body) values ($1, $2, 'booking_expired', 't', 'b')", [noteId2, userId]);
   await pool.query("insert into notification_outbox (notification_id, user_id, status) values ($1, $2, 'pending')", [noteId2, userId]);
 
-  const counts = await cleanupExpiredRecords(database.db, new Date());
+  const counts = await cleanupExpiredRecords(database.db, cleanupAt);
   expect(counts).toMatchObject({ challenges: 1, sessions: 1, refreshTokens: 1, idempotencyKeys: 1, outbox: 1 });
   expect(counts.rateLimits).toBe(baselineExpiredRateLimits + 1);
 
@@ -56,7 +57,7 @@ it('prunes only expired technical rows and preserves business and account histor
   expect((await pool.query('select count(*)::int as total from notifications where user_id = $1', [userId])).rows[0].total).toBe(2);
   expect((await pool.query("select count(*)::int as total from notification_outbox where status = 'pending' and user_id = $1", [userId])).rows[0].total).toBe(1);
   // Second run is a no-op: retention is by cutoff, not by age drift within a tick.
-  const again = await cleanupExpiredRecords(database.db, new Date());
+  const again = await cleanupExpiredRecords(database.db, cleanupAt);
   expect(again).toMatchObject({ challenges: 0, sessions: 0, refreshTokens: 0, idempotencyKeys: 0, outbox: 0 });
   expect(again.rateLimits).toBe(0);
 });

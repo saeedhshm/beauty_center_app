@@ -4,7 +4,7 @@ info:
   version: 0.6.0
   description: >-
     Demo-only payment initiation, provider callbacks and operations refunds.
-    Amounts are decimal strings in EGP and always come from the server; client
+    Amounts are decimal strings in the booking's snapshotted EGP or SAR currency and always come from the server; client
     echoes are matched, never trusted. No real funds move in demo mode.
 servers:
   - url: http://127.0.0.1:3000
@@ -266,7 +266,7 @@ components:
         id: { type: string, format: uuid }
         bookingId: { type: string, format: uuid }
         amount: { type: string, description: 'Decimal string with two places, snapshotted from the booking total' }
-        currency: { type: string, const: EGP }
+        currency: { type: string, enum: [EGP, SAR] }
         status: { type: string, enum: [pending, paid, failed, refunded] }
         provider: { type: string, const: demo }
         providerRef: { type: [string, 'null'] }

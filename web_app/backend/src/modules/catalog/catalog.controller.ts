@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { authenticatedUser } from '../../middleware/authenticate.js';
 import type { CatalogService } from './catalog.service.js';
-import { addressPatchSchema, addressSchema, adminExpertsQuery, cityPatchSchema, expertPatchSchema, expertPriceSchema, expertsQuery, idSchema, pageSchema, policyPatchSchema, servicePatchSchema, serviceSchema, uuidSchema } from './catalog.validation.js';
+import { addressPatchSchema, addressSchema, adminExpertsQuery, cityPatchSchema, citySchema, currencyPatchSchema, expertPatchSchema, expertPriceSchema, expertsQuery, idSchema, pageSchema, policyPatchSchema, servicePatchSchema, serviceSchema, uuidSchema } from './catalog.validation.js';
 
 export function catalogControllers(service: CatalogService) {
   return {
@@ -20,7 +20,9 @@ export function catalogControllers(service: CatalogService) {
     deleteAddress: async (req, res) => { await service.deleteAddress(authenticatedUser(res), uuidSchema.parse(req.params.id)); res.status(204).end(); },
     adminSettings: async (_req, res) => { res.json({ data: await service.configuration(), requestId: res.locals.requestId }); },
     editSettings: async (req, res) => { res.json({ data: await service.updatePolicy(authenticatedUser(res), policyPatchSchema.parse(req.body)), requestId: res.locals.requestId }); },
+    editCurrency: async (req, res) => { res.json({ data: await service.updateCurrency(authenticatedUser(res), currencyPatchSchema.parse(req.body).currency), requestId: res.locals.requestId }); },
     adminCities: async (_req, res) => { res.json({ data: await service.listCities(true), requestId: res.locals.requestId }); },
+    addCity: async (req, res) => { res.status(201).json({ data: await service.createCity(authenticatedUser(res), citySchema.parse(req.body)), requestId: res.locals.requestId }); },
     editCity: async (req, res) => { res.json({ data: await service.updateCity(authenticatedUser(res), idSchema.parse(req.params.id), cityPatchSchema.parse(req.body).isActive), requestId: res.locals.requestId }); },
     adminServices: async (req, res) => { res.json({ data: await service.listServices(pageSchema.strict().parse(req.query), authenticatedUser(res)), requestId: res.locals.requestId }); },
     addService: async (req, res) => { res.status(201).json({ data: await service.createService(authenticatedUser(res), serviceSchema.parse(req.body)), requestId: res.locals.requestId }); },

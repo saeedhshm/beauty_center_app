@@ -114,7 +114,7 @@ it('updates policy settings atomically with audit records and retains concurrent
   }
 });
 
-it('enforces address ownership, Cairo coverage, coordinate validation and one default under concurrency', async () => {
+it('enforces address ownership, active-city coverage, coordinate validation and one default under concurrency', async () => {
   const h = await harness();
   const owner = await h.register('customer');
   const other = await h.register('customer');
@@ -131,9 +131,38 @@ it('enforces address ownership, Cairo coverage, coordinate validation and one de
   expect((await request(h.app).get('/api/v1/addresses').auth(expert.accessToken, { type: 'bearer' })).status).toBe(403);
   expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, customerId: other.user.id })).status).toBe(422);
   expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, lat: '30.0' })).status).toBe(422);
-  const otherCity = (await pool.query('insert into cities(name,is_active) values($1,true) returning id', [`Other-${randomUUID()}`])).rows[0].id;
+  const otherCity = (await pool.query('insert into cities(name,is_active) values($1,false) returning id', [`Other-${randomUUID()}`])).rows[0].id;
   expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, cityId: otherCity })).status).toBe(409);
   expect((await request(h.app).delete(`/api/v1/addresses/${id}`).auth(owner.accessToken, { type: 'bearer' })).status).toBe(204);
+});
+
+it('creates managed cities with strict unique fields and activates them atomically with audit', async () => {
+  const h = await harness();
+  const suffix = randomInt(100000, 999999).toString();
+  const input = { name: `الإسكندرية ${suffix}`, code: `EG-A${suffix}` };
+  for (const invalid of [
+    { name: 'Alexandria', code: input.code },
+    { name: input.name, code: 'eg-alx' },
+    { ...input, isActive: true },
+  ]) {
+    expect((await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' }).send(invalid)).status).toBe(422);
+  }
+  const created = await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' }).send(input);
+  expect(created.status).toBe(201);
+  expect(created.body.data).toMatchObject({ ...input, isActive: false });
+  expect((await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' }).send(input)).status).toBe(409);
+  expect((await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' }).send({ name: `مدينة ${suffix}`, code: input.code })).status).toBe(409);
+  expect((await request(h.app).get('/api/v1/cities')).body.data).not.toContainEqual(expect.objectContaining({ id: created.body.data.id }));
+
+  const activated = await request(h.app).patch(`/api/v1/admin/cities/${created.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
+  expect(activated.status).toBe(200);
+  expect((await request(h.app).get('/api/v1/cities')).body.data).toContainEqual(expect.objectContaining({ id: created.body.data.id, isActive: true }));
+  expect((await pool.query("select action from admin_audit_logs where actor_id=$1 and resource_id=$2 and action in ('city.created','city.updated')", [h.adminId, String(created.body.data.id)])).rows.map((row) => row.action).sort()).toEqual(['city.created', 'city.updated']);
+
+  const expert = await h.register('expert');
+  await request(h.app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ cityId: created.body.data.id });
+  expect((await request(h.app).get('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' })).body.data.cityId).toBe(created.body.data.id);
+  await request(h.app).patch(`/api/v1/admin/cities/${created.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: false });
 });
 
 it('prevents self-approval and cross-expert writes, hides inactive services, suspended experts and legacy-priced offers', async () => {
@@ -163,7 +192,7 @@ it('prevents self-approval and cross-expert writes, hides inactive services, sus
   expect(profile.body.data).toMatchObject({ approvalStatus: 'suspended', isAcceptingBookings: false });
 });
 
-it('paginates on the server, validates filters, and disables Cairo without exposing other active cities', async () => {
+it('paginates on the server, validates filters, and hides a deactivated managed city', async () => {
   const h = await harness();
   await h.service(); await h.service();
   const first = await request(h.app).get('/api/v1/services').query({ page: 1, limit: 1 });

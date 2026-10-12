@@ -5,7 +5,6 @@ import {
 } from '../../db/schema/core.js';
 import { adminAuditLogs } from '../../db/schema/admin.js';
 import { bookingStatusHistory, bookings, idempotencyKeys } from '../../db/schema/bookings.js';
-import { MARKET } from '../../config/market.js';
 import type { BookingListQuery, Page } from './booking.validation.js';
 
 type Database = ReturnType<typeof createDatabase>['db'];
@@ -73,6 +72,12 @@ export class BookingRepository {
     return row;
   }
 
+  async market(lock: 'share' | false = false) {
+    const q = this.db.select().from(settings).where(eq(settings.key, 'market'));
+    const [row] = await (lock ? q.for(lock) : q);
+    return row;
+  }
+
   async address(customerId: string, id: string) {
     const [row] = await this.db.select().from(customerAddresses)
       .where(and(eq(customerAddresses.customerId, customerId), eq(customerAddresses.id, id)));
@@ -95,14 +100,15 @@ export class BookingRepository {
     return row;
   }
 
-  /** Expert must be visible in the Cairo catalog to receive bookings. */
-  async bookableExpert(expertId: string) {    const [row] = await this.db.select({ id: users.id }).from(users)
+  /** Expert must be visible in the active city selected by the booking address. */
+  async bookableExpert(expertId: string, cityId: number) {
+    const [row] = await this.db.select({ id: users.id }).from(users)
       .innerJoin(expertProfiles, eq(users.id, expertProfiles.userId))
       .innerJoin(cities, eq(users.cityId, cities.id))
       .where(and(
         eq(users.id, expertId), eq(users.role, 'expert'), eq(users.isActive, true),
         eq(expertProfiles.approvalStatus, 'approved'), eq(expertProfiles.isAcceptingBookings, true),
-        eq(cities.code, MARKET.cityCode), eq(cities.isActive, true),
+        eq(cities.id, cityId), eq(cities.isActive, true),
       )).limit(1);
     return row;
   }
@@ -112,14 +118,14 @@ export class BookingRepository {
    * Serializes against a concurrent admin suspend: whoever commits first wins,
    * and the loser sees the settled state instead of acting on a stale read.
    */
-  async lockBookableExpert(expertId: string) {
+  async lockBookableExpert(expertId: string, cityId: number) {
     const [row] = await this.db.select({ id: users.id }).from(users)
       .innerJoin(expertProfiles, eq(users.id, expertProfiles.userId))
       .innerJoin(cities, eq(users.cityId, cities.id))
       .where(and(
         eq(users.id, expertId), eq(users.role, 'expert'), eq(users.isActive, true),
         eq(expertProfiles.approvalStatus, 'approved'), eq(expertProfiles.isAcceptingBookings, true),
-        eq(cities.code, MARKET.cityCode), eq(cities.isActive, true),
+        eq(cities.id, cityId), eq(cities.isActive, true),
       )).limit(1).for('update');
     return row;
   }
