@@ -154,6 +154,8 @@ class AccountApi implements AccountGateway {
 abstract interface class ExpertGateway {
   Future<ExpertProfile> profile();
 
+  Future<ExpertProfile> setAcceptingBookings(bool isAcceptingBookings);
+
   Future<ExpertProfile> updateProfile({
     required String name,
     required String? bio,
@@ -178,6 +180,16 @@ class ExpertApi implements ExpertGateway {
   Future<ExpertProfile> profile() async {
     final body = await _client.get<Map<String, dynamic>>(
       '/api/v1/experts/me',
+      authenticated: true,
+    );
+    return ExpertProfile.fromJson(_data(body));
+  }
+
+  @override
+  Future<ExpertProfile> setAcceptingBookings(bool isAcceptingBookings) async {
+    final body = await _client.patch<Map<String, dynamic>>(
+      '/api/v1/experts/me',
+      data: {'isAcceptingBookings': isAcceptingBookings},
       authenticated: true,
     );
     return ExpertProfile.fromJson(_data(body));

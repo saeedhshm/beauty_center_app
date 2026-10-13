@@ -120,8 +120,8 @@ class LamsaLocalizations {
   String get approvedAccount =>
       isArabic ? 'تم اعتماد حسابكِ' : 'Your account is approved';
   String get approvedAccountMessage => isArabic
-      ? 'ستتوفر إدارة الخدمات والمواعيد في المراحل التالية.'
-      : 'Services and scheduling will be available in later phases.';
+      ? 'يمكنكِ الآن إدارة خدماتكِ ومعرض أعمالكِ.'
+      : 'You can now manage your services and portfolio.';
   String get suspendedAccount =>
       isArabic ? 'الحساب معلّق' : 'Account suspended';
   String get suspendedAccountMessage => isArabic
@@ -130,6 +130,201 @@ class LamsaLocalizations {
   String get noCities => isArabic
       ? 'لا توجد مدينة إطلاق مفعلة حاليًا'
       : 'No active launch city is available';
+  String get catalog => isArabic ? 'اكتشفي' : 'Discover';
+  String get addresses => isArabic ? 'العناوين' : 'Addresses';
+  String get loadingCatalog =>
+      isArabic ? 'جاري تحميل الكتالوج' : 'Loading catalog';
+  String get loadingCatalogMessage => isArabic
+      ? 'نجهز لكِ الخدمات والخبيرات المتاحات.'
+      : 'Preparing available services and experts.';
+  String get noCitiesMessage => isArabic
+      ? 'لا توجد مدن نشطة متاحة حاليًا.'
+      : 'No active cities are currently available.';
+  String get noExperts => isArabic ? 'لا توجد خبيرات' : 'No experts found';
+  String get noExpertsMessage => isArabic
+      ? 'غيّري البحث أو الخدمة المختارة وحاولي مرة أخرى.'
+      : 'Change the search or selected service and try again.';
+  String get loadMore => isArabic ? 'عرض المزيد' : 'Load more';
+  String get searchExperts =>
+      isArabic ? 'ابحثي باسم الخبيرة' : 'Search experts by name';
+  String get search => isArabic ? 'بحث' : 'Search';
+  String get service => isArabic ? 'الخدمة' : 'Service';
+  String get allServices => isArabic ? 'كل الخدمات' : 'All services';
+  String get loadingExpert =>
+      isArabic ? 'جاري تحميل ملف الخبيرة' : 'Loading expert profile';
+  String get loadingExpertMessage => isArabic
+      ? 'نقرأ الخدمات والأسعار والتقييمات.'
+      : 'Loading services, prices, and reviews.';
+  String get services => isArabic ? 'الخدمات' : 'Services';
+  String get portfolio => isArabic ? 'معرض الأعمال' : 'Portfolio';
+  String get noPortfolio =>
+      isArabic ? 'لا توجد صور في المعرض' : 'No portfolio images';
+  String get reviews => isArabic ? 'التقييمات' : 'Reviews';
+  String get noReviews => isArabic ? 'لا توجد تقييمات بعد' : 'No reviews yet';
+  String get loadMoreReviews =>
+      isArabic ? 'عرض تقييمات أخرى' : 'Load more reviews';
+  String get imageLoadFailed =>
+      isArabic ? 'تعذر تحميل الصورة' : 'Image could not be loaded';
+  String get forbiddenTitle => isArabic ? 'غير مسموح' : 'Access denied';
+  String get requestFailed => isArabic ? 'تعذر تنفيذ الطلب' : 'Request failed';
+  String get unexpectedError =>
+      isArabic ? 'حدث خطأ غير متوقع' : 'An unexpected error occurred';
+  String get addAddress => isArabic ? 'إضافة عنوان' : 'Add address';
+  String get loadingAddresses =>
+      isArabic ? 'جاري تحميل العناوين' : 'Loading addresses';
+  String get loadingAddressesMessage => isArabic
+      ? 'نقرأ عناوينكِ المحفوظة بأمان.'
+      : 'Loading your saved addresses securely.';
+  String get noAddresses =>
+      isArabic ? 'لا توجد عناوين محفوظة' : 'No saved addresses';
+  String get noAddressesMessage => isArabic
+      ? 'أضيفي عنوانًا لاستخدامه لاحقًا في الحجز.'
+      : 'Add an address to use for a future booking.';
+  String get defaultAddress =>
+      isArabic ? 'العنوان الافتراضي' : 'Default address';
+  String get makeDefault => isArabic ? 'تعيين كافتراضي' : 'Make default';
+  String get edit => isArabic ? 'تعديل' : 'Edit';
+  String get delete => isArabic ? 'حذف' : 'Delete';
+  String get defaultAddressUpdated =>
+      isArabic ? 'تم تحديث العنوان الافتراضي' : 'Default address updated';
+  String get deleteAddressTitle =>
+      isArabic ? 'حذف العنوان؟' : 'Delete address?';
+  String get cancel => isArabic ? 'إلغاء' : 'Cancel';
+  String get addressDeleted => isArabic ? 'تم حذف العنوان' : 'Address deleted';
+  String get editAddress => isArabic ? 'تعديل العنوان' : 'Edit address';
+  String get addressLabel => isArabic ? 'اسم العنوان' : 'Address label';
+  String get addressText =>
+      isArabic ? 'وصف العنوان بالتفصيل' : 'Full address description';
+  String get optionalCoordinatesTitle =>
+      isArabic ? 'الإحداثيات (اختيارية)' : 'Coordinates (optional)';
+  String get optionalCoordinatesMessage => isArabic
+      ? 'أدخلي خط العرض والطول معًا. الإحداثيات لا تثبت أن العنوان داخل حدود المدينة.'
+      : 'Enter latitude and longitude together. Coordinates do not prove the address is within city boundaries.';
+  String get latitude => isArabic ? 'خط العرض' : 'Latitude';
+  String get longitude => isArabic ? 'خط الطول' : 'Longitude';
+  String get addressLabelValidation => isArabic
+      ? 'اسم العنوان مطلوب وبحد أقصى 100 حرف.'
+      : 'Address label is required and must be at most 100 characters.';
+  String get addressTextValidation => isArabic
+      ? 'وصف العنوان يجب أن يكون بين 5 و1000 حرف.'
+      : 'Address description must be between 5 and 1000 characters.';
+  String get coordinatesPairValidation => isArabic
+      ? 'أدخلي خط العرض والطول معًا أو اتركيهما فارغين.'
+      : 'Enter both latitude and longitude or leave both empty.';
+  String ratingSummary(String ratingAvg, int ratingCount) => isArabic
+      ? '$ratingAvg من 5 ($ratingCount تقييم)'
+      : '$ratingAvg out of 5 ($ratingCount reviews)';
+  String cityValue(String city) => isArabic ? 'المدينة: $city' : 'City: $city';
+  String serviceDuration(int durationMin) =>
+      isArabic ? '$durationMin دقيقة' : '$durationMin min';
+  String reviewHeading(String reviewerName, int rating) => isArabic
+      ? '$reviewerName - $rating من 5'
+      : '$reviewerName - $rating out of 5';
+  String deleteAddressMessage(String label) => isArabic
+      ? 'سيتم حذف عنوان "$label" نهائيًا.'
+      : 'The address "$label" will be permanently deleted.';
+  String coordinateRangeValidation(double min, double max) => isArabic
+      ? 'يجب أن تكون القيمة بين $min و$max.'
+      : 'Value must be between $min and $max.';
+  String get acceptingBookings =>
+      isArabic ? 'استقبال الطلبات' : 'Accept bookings';
+  String get acceptingBookingsHint => isArabic
+      ? 'عند التفعيل يمكن للعميلات العثور على ملفكِ المؤهل.'
+      : 'When enabled, customers can find your eligible profile.';
+  String get acceptingBookingsUpdated =>
+      isArabic ? 'تم تحديث استقبال الطلبات' : 'Booking intake updated';
+  String get activateOffer => isArabic ? 'تفعيل الخدمة' : 'Activate service';
+  String get addFirstService =>
+      isArabic ? 'أضيفي خدمتكِ الأولى' : 'Add your first service';
+  String get addPortfolioImage => isArabic ? 'إضافة صورة' : 'Add image';
+  String get addService => isArabic ? 'إضافة خدمة' : 'Add service';
+  String get approvalRequiredToAcceptBookings => isArabic
+      ? 'يلزم اعتماد الحساب قبل استقبال الطلبات.'
+      : 'Account approval is required before accepting bookings.';
+  String get approvedAccountWorkspaceMessage => isArabic
+      ? 'حسابكِ معتمد ويمكنكِ إدارة الخدمات والمعرض واستقبال الطلبات.'
+      : 'Your account is approved. You can manage services, portfolio, and booking intake.';
+  String get associateServiceOptional =>
+      isArabic ? 'ربط بخدمة (اختياري)' : 'Link to service (optional)';
+  String get availableGlobalServices =>
+      isArabic ? 'الخدمات المتاحة للإضافة' : 'Services available to add';
+  String get changePrice => isArabic ? 'تغيير السعر' : 'Change price';
+  String get deactivateOffer =>
+      isArabic ? 'إيقاف الخدمة' : 'Deactivate service';
+  String get deleteFailed => isArabic ? 'تعذر الحذف' : 'Delete failed';
+  String get deleteImage => isArabic ? 'حذف الصورة' : 'Delete image';
+  String get deletePortfolioImageMessage => isArabic
+      ? 'سيتم حذف الصورة من معرض أعمالكِ.'
+      : 'This image will be removed from your portfolio.';
+  String get deletePortfolioImageTitle =>
+      isArabic ? 'حذف صورة المعرض؟' : 'Delete portfolio image?';
+  String get emptyPortfolio =>
+      isArabic ? 'معرضكِ فارغ' : 'Your portfolio is empty';
+  String get emptyPortfolioHint => isArabic
+      ? 'أضيفي صورًا حقيقية لأعمالكِ حتى 20 صورة.'
+      : 'Add real examples of your work, up to 20 images.';
+  String get expertWorkspace => isArabic ? 'مساحة الخبيرة' : 'Expert workspace';
+  String get fileReadFailed =>
+      isArabic ? 'تعذر قراءة الملف' : 'Could not read file';
+  String get fileTooLarge5MiB =>
+      isArabic ? 'حجم الملف يتجاوز 5MB' : 'File exceeds 5 MiB';
+  String get fileUploadFailed =>
+      isArabic ? 'تعذر رفع الملف' : 'File upload failed';
+  String get globalServiceActive =>
+      isArabic ? 'الخدمة متاحة' : 'Service available';
+  String get globalServiceInactive =>
+      isArabic ? 'الخدمة العامة متوقفة' : 'Global service inactive';
+  String get globalServiceInactiveHint => isArabic
+      ? 'لا يمكن تفعيل العرض حتى تعيد الإدارة تفعيل الخدمة.'
+      : 'The offer cannot be activated until administration enables the service.';
+  String get invalidPrice => isArabic
+      ? 'أدخلي سعرًا صحيحًا حتى 8 أرقام ومنزلتين عشريتين.'
+      : 'Enter a valid price with up to 8 digits and 2 decimals.';
+  String get loadingPortfolio =>
+      isArabic ? 'جاري تحميل المعرض' : 'Loading portfolio';
+  String get loadingServices =>
+      isArabic ? 'جاري تحميل الخدمات' : 'Loading services';
+  String get noAssociatedService =>
+      isArabic ? 'دون خدمة محددة' : 'No linked service';
+  String get noExpertServices =>
+      isArabic ? 'لا توجد خدمات مضافة' : 'No services added';
+  String get noServicesToAdd =>
+      isArabic ? 'لا توجد خدمات أخرى للإضافة' : 'No more services to add';
+  String get offerActive => isArabic ? 'العرض نشط' : 'Offer active';
+  String get offerInactive => isArabic ? 'العرض متوقف' : 'Offer inactive';
+  String get portfolioLimitReached =>
+      isArabic ? 'وصلتِ إلى حد 20 صورة' : 'You reached the 20-image limit';
+  String get portfolioLoadFailed =>
+      isArabic ? 'تعذر تحميل المعرض' : 'Could not load portfolio';
+  String get portfolioUploadHint => isArabic
+      ? 'JPG أو PNG أو WebP حتى 5MB للصورة.'
+      : 'JPG, PNG, or WebP up to 5 MiB per image.';
+  String get priceDecimalLabel => isArabic ? 'السعر' : 'Price';
+  String get profileLoadFailed =>
+      isArabic ? 'تعذر تحميل الملف' : 'Could not load profile';
+  String get servicePrice => isArabic ? 'سعر الخدمة' : 'Service price';
+  String get serviceSaved => isArabic ? 'تم حفظ الخدمة' : 'Service saved';
+  String get servicesAndPrices =>
+      isArabic ? 'الخدمات والأسعار' : 'Services and prices';
+  String get servicesLoadFailed =>
+      isArabic ? 'تعذر تحميل الخدمات' : 'Could not load services';
+  String get servicesMoneyHint => isArabic
+      ? 'العملة يحددها السوق، ولن يجري التطبيق أي تحويل.'
+      : 'Currency is set by the market; the app performs no conversion.';
+  String get tryAgain => isArabic ? 'حاولي مرة أخرى' : 'Try again';
+  String get unavailableService =>
+      isArabic ? 'خدمة غير متاحة' : 'Unavailable service';
+  String get unsupportedFileType =>
+      isArabic ? 'نوع الملف غير مدعوم' : 'Unsupported file type';
+  String get unsupportedPortfolioFileType => isArabic
+      ? 'اختاري صورة JPG أو PNG أو WebP.'
+      : 'Choose a JPG, PNG, or WebP image.';
+  String get updateFailed => isArabic ? 'تعذر حفظ التحديث' : 'Update failed';
+  String portfolioCount(int current, int maximum) =>
+      isArabic ? '$current من $maximum صورة' : '$current of $maximum images';
+  String priceWithCurrency(String price, String currency) => '$price $currency';
+  String serviceDurationMinutes(int minutes) =>
+      isArabic ? '$minutes دقيقة' : '$minutes minutes';
 }
 
 class _LamsaLocalizationsDelegate

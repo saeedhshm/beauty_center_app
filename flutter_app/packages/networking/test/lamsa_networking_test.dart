@@ -116,6 +116,87 @@ void main() {
       expect(authenticator.expiredCalls, 1);
     },
   );
+
+  test(
+    'byte response keeps its response type when authentication retries',
+    () async {
+      final authenticator = FakeAuthenticator();
+      final adapter = UnauthorizedBytesOnceAdapter();
+      final client = ApiClient(
+        config: const AppConfig(
+          environment: AppEnvironment.development,
+          apiBaseUrl: 'http://127.0.0.1:3000',
+        ),
+        dio: Dio()..httpClientAdapter = adapter,
+        authenticator: authenticator,
+      );
+
+      final bytes = await client.getBytes('/image', authenticated: true);
+
+      expect(bytes, [1, 2, 3]);
+      expect(adapter.responseTypes, [ResponseType.bytes, ResponseType.bytes]);
+      expect(authenticator.refreshCalls, 1);
+    },
+  );
+
+  test('multipart upload merges fields with the file part', () async {
+    final adapter = MultipartAdapter();
+    final client = ApiClient(
+      config: const AppConfig(
+        environment: AppEnvironment.development,
+        apiBaseUrl: 'http://127.0.0.1:3000',
+      ),
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+
+    await client.uploadBytes<Map<String, dynamic>>(
+      '/portfolio',
+      fieldName: 'image',
+      bytes: [1],
+      filename: 'image.jpg',
+      contentType: 'image/jpeg',
+      fields: {'serviceId': 4},
+      authenticated: false,
+    );
+
+    expect(Map.fromEntries(adapter.form!.fields)['serviceId'], '4');
+    expect(adapter.form!.files.single.key, 'image');
+  });
+
+  test('authenticated multipart rebuilds and replays once after 401', () async {
+    final authenticator = FakeAuthenticator();
+    final adapter = UnauthorizedMultipartOnceAdapter();
+    final client = ApiClient(
+      config: const AppConfig(
+        environment: AppEnvironment.development,
+        apiBaseUrl: 'http://127.0.0.1:3000',
+      ),
+      dio: Dio()..httpClientAdapter = adapter,
+      authenticator: authenticator,
+    );
+
+    final body = await client.uploadBytes<Map<String, dynamic>>(
+      '/portfolio',
+      fieldName: 'image',
+      bytes: [1, 2, 3],
+      filename: 'image.jpg',
+      contentType: 'image/jpeg',
+      fields: {'serviceId': 4},
+    );
+
+    expect(body['data'], 'ok');
+    expect(adapter.forms, hasLength(2));
+    expect(identical(adapter.forms[0], adapter.forms[1]), isFalse);
+    expect(adapter.authorization, ['Bearer old-access', 'Bearer new-access']);
+    expect(authenticator.refreshCalls, 1);
+    for (final form in adapter.forms) {
+      expect(Map.fromEntries(form.fields)['serviceId'], '4');
+      expect(form.files.single.key, 'image');
+      expect(form.files.single.value.filename, 'image.jpg');
+      expect(form.files.single.value.length, 3);
+      expect(form.files.single.value.contentType.toString(), 'image/jpeg');
+    }
+  });
 }
 
 class FakeAuthenticator implements ApiAuthenticator {
@@ -177,6 +258,85 @@ class AlwaysUnauthorizedAdapter implements HttpClientAdapter {
     return ResponseBody.fromString(
       '{"error":{"code":"UNAUTHENTICATED","message":"expired"}}',
       401,
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class UnauthorizedBytesOnceAdapter implements HttpClientAdapter {
+  int calls = 0;
+  final List<ResponseType?> responseTypes = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    calls += 1;
+    responseTypes.add(options.responseType);
+    if (calls == 1) {
+      return ResponseBody.fromString(
+        '{"error":{"code":"UNAUTHENTICATED","message":"expired"}}',
+        401,
+        headers: {
+          Headers.contentTypeHeader: ['application/json'],
+        },
+      );
+    }
+    return ResponseBody.fromBytes([1, 2, 3], 200);
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class MultipartAdapter implements HttpClientAdapter {
+  FormData? form;
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    form = options.data! as FormData;
+    return ResponseBody.fromString(
+      '{}',
+      200,
+      headers: {
+        Headers.contentTypeHeader: ['application/json'],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
+class UnauthorizedMultipartOnceAdapter implements HttpClientAdapter {
+  final List<FormData> forms = [];
+  final List<String?> authorization = [];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async {
+    forms.add(options.data! as FormData);
+    authorization.add(options.headers['Authorization'] as String?);
+    final unauthorized = forms.length == 1;
+    return ResponseBody.fromString(
+      unauthorized
+          ? '{"error":{"code":"UNAUTHENTICATED","message":"expired"}}'
+          : '{"data":"ok"}',
+      unauthorized ? 401 : 200,
       headers: {
         Headers.contentTypeHeader: ['application/json'],
       },

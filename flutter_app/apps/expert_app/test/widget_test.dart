@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamsa_authentication/lamsa_authentication.dart';
+import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_expert/src/app.dart';
 
 void main() {
@@ -20,6 +22,8 @@ void main() {
         overrides: [
           sessionManagerProvider.overrideWithValue(manager),
           expertApiProvider.overrideWithValue(FakeExpertGateway()),
+          expertWorkspaceApiProvider.overrideWithValue(FakeWorkspaceGateway()),
+          catalogApiProvider.overrideWithValue(FakeCatalogGateway()),
           networkStateProvider.overrideWith((ref) => Stream.value(true)),
         ],
         child: const ExpertApp(),
@@ -28,9 +32,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('ملفكِ قيد مراجعة الإدارة'), findsOneWidget);
-    expect(find.text('ملف الخبيرة'), findsOneWidget);
+    expect(find.text('ملف الخبيرة'), findsWidgets);
     expect(find.text('اختيار ورفع الوثيقة'), findsOneWidget);
-    expect(find.textContaining('إدارة الخدمات'), findsNothing);
+    final acceptingSwitch = tester.widget<SwitchListTile>(
+      find.byKey(const ValueKey('accepting-bookings-switch')),
+    );
+    expect(acceptingSwitch.onChanged, isNull);
+    expect(find.byIcon(Icons.spa_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.photo_library_outlined), findsOneWidget);
   });
 }
 
@@ -102,9 +111,79 @@ class FakeExpertGateway implements ExpertGateway {
     required int cityId,
   }) => profile();
   @override
+  Future<ExpertProfile> setAcceptingBookings(bool isAcceptingBookings) async =>
+      ExpertProfile(
+        userId: '00000000-0000-4000-8000-000000000001',
+        name: 'خبيرة اختبار',
+        cityId: 1,
+        bio: 'خبيرة عناية',
+        approvalStatus: ExpertApprovalStatus.pending,
+        isAcceptingBookings: isAcceptingBookings,
+      );
+  @override
   Future<void> uploadIdentityDocument({
     required List<int> bytes,
     required String filename,
     required String contentType,
   }) async {}
+}
+
+class FakeWorkspaceGateway implements ExpertWorkspaceGateway {
+  @override
+  Future<void> deletePortfolio(String id) async {}
+  @override
+  Future<List<PortfolioItem>> portfolio(String expertId) async => const [];
+  @override
+  Future<List<int>> portfolioBytes(String relativeUrl) async => const [];
+  @override
+  Future<List<ExpertService>> services() async => const [];
+  @override
+  Future<PortfolioItem> uploadPortfolio({
+    required List<int> bytes,
+    required String filename,
+    required String contentType,
+    int? serviceId,
+  }) => throw UnimplementedError();
+  @override
+  Future<ExpertService> upsertService({
+    required int serviceId,
+    required String price,
+    required bool isActive,
+  }) => throw UnimplementedError();
+}
+
+class FakeCatalogGateway implements CatalogGateway {
+  @override
+  Future<List<CatalogCity>> cities() async => const [];
+  @override
+  Future<ExpertDetail> expert(String id) => throw UnimplementedError();
+  @override
+  Future<CatalogPage<PublicExpert>> experts({
+    int page = 1,
+    int limit = 20,
+    int? cityId,
+    int? serviceId,
+    String? q,
+  }) => throw UnimplementedError();
+  @override
+  Future<List<PortfolioItem>> portfolio(
+    String expertId, {
+    bool authenticated = false,
+  }) => throw UnimplementedError();
+  @override
+  Future<List<int>> portfolioBytes(
+    String relativeUrl, {
+    bool authenticated = false,
+  }) => throw UnimplementedError();
+  @override
+  Future<CatalogPage<PublicReview>> reviews(
+    String expertId, {
+    int page = 1,
+    int limit = 20,
+  }) => throw UnimplementedError();
+  @override
+  Future<CatalogPage<CatalogService>> services({
+    int page = 1,
+    int limit = 20,
+  }) async => const CatalogPage(items: [], page: 1, limit: 20, hasNext: false);
 }

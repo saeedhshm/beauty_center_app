@@ -48,6 +48,20 @@ class ApiClient {
     );
   }
 
+  Future<List<int>> getBytes(
+    String path, {
+    CancelToken? cancelToken,
+    bool authenticated = false,
+  }) {
+    return _request<List<int>>(
+      method: 'GET',
+      path: path,
+      cancelToken: cancelToken,
+      authenticated: authenticated,
+      responseType: ResponseType.bytes,
+    );
+  }
+
   Future<T> post<T>(
     String path, {
     Object? data,
@@ -114,22 +128,30 @@ class ApiClient {
     required List<int> bytes,
     required String filename,
     required String contentType,
+    Map<String, Object?>? fields,
     CancelToken? cancelToken,
     bool authenticated = true,
   }) {
+    final fileBytes = List<int>.unmodifiable(bytes);
+    final formFields = Map<String, Object?>.unmodifiable(
+      fields ?? const <String, Object?>{},
+    );
+    final mediaType = MediaType.parse(contentType);
+    FormData createFormData() => FormData.fromMap({
+      ...formFields,
+      fieldName: MultipartFile.fromBytes(
+        fileBytes,
+        filename: filename,
+        contentType: mediaType,
+      ),
+    });
+
     return _request(
       method: 'POST',
       path: path,
-      data: FormData.fromMap({
-        fieldName: MultipartFile.fromBytes(
-          bytes,
-          filename: filename,
-          contentType: MediaType.parse(contentType),
-        ),
-      }),
+      createData: createFormData,
       cancelToken: cancelToken,
       authenticated: authenticated,
-      canRetry: false,
     );
   }
 
@@ -137,11 +159,13 @@ class ApiClient {
     required String method,
     required String path,
     Object? data,
+    Object? Function()? createData,
     Map<String, dynamic>? query,
     CancelToken? cancelToken,
     bool authenticated = false,
     bool canRetry = true,
     bool retried = false,
+    ResponseType? responseType,
   }) async {
     final authenticator = _authenticator;
     final token = authenticated && authenticator != null
@@ -153,10 +177,14 @@ class ApiClient {
     try {
       final response = await _dio.request<T>(
         path,
-        data: data,
+        data: createData?.call() ?? data,
         queryParameters: query,
         cancelToken: cancelToken,
-        options: Options(method: method, headers: headers),
+        options: Options(
+          method: method,
+          headers: headers,
+          responseType: responseType,
+        ),
       );
       return response.data as T;
     } on DioException catch (error) {
@@ -180,11 +208,13 @@ class ApiClient {
             method: method,
             path: path,
             data: data,
+            createData: createData,
             query: query,
             cancelToken: cancelToken,
             authenticated: true,
             canRetry: canRetry,
             retried: true,
+            responseType: responseType,
           );
         }
       }

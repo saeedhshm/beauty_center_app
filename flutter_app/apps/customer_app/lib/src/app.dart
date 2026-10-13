@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lamsa_authentication/lamsa_authentication.dart';
+import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
+
+import 'customer_shell.dart';
 
 final appConfigProvider = Provider<AppConfig>(
   (ref) => AppConfig.fromDartDefines(),
@@ -46,6 +49,12 @@ final authenticatedApiClientProvider = Provider<ApiClient>(
 );
 final accountApiProvider = Provider<AccountGateway>(
   (ref) => AccountApi(ref.watch(authenticatedApiClientProvider)),
+);
+final catalogApiProvider = Provider<CatalogGateway>(
+  (ref) => CatalogApi(ref.watch(rawApiClientProvider)),
+);
+final addressApiProvider = Provider<AddressGateway>(
+  (ref) => AddressApi(ref.watch(authenticatedApiClientProvider)),
 );
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -87,10 +96,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/home',
-        builder: (context, state) => LamsaAccountScreen(
+        builder: (context, state) => CustomerShell(
           manager: session,
-          api: ref.read(accountApiProvider),
-          title: context.lamsa.customerApp,
+          accountApi: ref.read(accountApiProvider),
+          catalogApi: ref.read(catalogApiProvider),
+          addressApi: ref.read(addressApiProvider),
         ),
       ),
     ],

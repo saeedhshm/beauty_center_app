@@ -19,6 +19,7 @@ dependencies:
     path: ../networking
 
 dev_dependencies:
+  dio: ^5.9.1
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0

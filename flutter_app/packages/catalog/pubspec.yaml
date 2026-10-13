@@ -1,0 +1,16 @@
+name: lamsa_catalog
+description: عقود كتالوج لمسة والعناوين ومساحة عمل الخبيرة
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  lamsa_networking:
+    path: ../networking
+
+dev_dependencies:
+  dio: ^5.9.2
+  lints: ^6.0.0
+  test: ^1.26.0

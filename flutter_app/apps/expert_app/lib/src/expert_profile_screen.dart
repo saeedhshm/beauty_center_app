@@ -11,11 +11,15 @@ class ExpertProfileScreen extends StatefulWidget {
   const ExpertProfileScreen({
     required this.manager,
     required this.api,
+    this.embedded = false,
+    this.refreshSignal,
     super.key,
   });
 
   final SessionManager manager;
   final ExpertGateway api;
+  final bool embedded;
+  final Listenable? refreshSignal;
 
   @override
   State<ExpertProfileScreen> createState() => _ExpertProfileScreenState();
@@ -31,19 +35,38 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
   bool _loading = true;
   bool _saving = false;
   bool _uploading = false;
+  bool _changingAcceptance = false;
   bool _uploadedThisSession = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    if (!widget.embedded) WidgetsBinding.instance.addObserver(this);
+    widget.refreshSignal?.addListener(_load);
     _load();
   }
 
   @override
+  void didUpdateWidget(covariant ExpertProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshSignal != widget.refreshSignal) {
+      oldWidget.refreshSignal?.removeListener(_load);
+      widget.refreshSignal?.addListener(_load);
+    }
+    if (oldWidget.embedded != widget.embedded) {
+      if (widget.embedded) {
+        WidgetsBinding.instance.removeObserver(this);
+      } else {
+        WidgetsBinding.instance.addObserver(this);
+      }
+    }
+  }
+
+  @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    if (!widget.embedded) WidgetsBinding.instance.removeObserver(this);
+    widget.refreshSignal?.removeListener(_load);
     _name.dispose();
     _bio.dispose();
     super.dispose();
@@ -57,9 +80,8 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: Text(context.lamsa.expertApp)),
-        body: LamsaStatusView(
+      return _frame(
+        LamsaStatusView(
           status: LamsaStatus.loading,
           title: context.lamsa.expertProfile,
           message: context.lamsa.loadingSession,
@@ -67,35 +89,19 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
       );
     }
     if (_profile == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text(context.lamsa.expertApp)),
-        body: LamsaStatusView(
-          status: _error?.contains('صلاحية') ?? false
+      return _frame(
+        LamsaStatusView(
+          status: _errorKind == ApiFailureKind.forbidden
               ? LamsaStatus.forbidden
               : LamsaStatus.error,
-          title: 'تعذر تحميل الملف',
-          message: _error ?? 'حاولي مرة أخرى',
+          title: context.lamsa.profileLoadFailed,
+          message: _error ?? context.lamsa.tryAgain,
           onRetry: _load,
         ),
       );
     }
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(context.lamsa.expertApp),
-        actions: [
-          IconButton(
-            tooltip: context.lamsa.retry,
-            onPressed: _load,
-            icon: const Icon(Icons.refresh),
-          ),
-          IconButton(
-            tooltip: context.lamsa.logout,
-            onPressed: widget.manager.logout,
-            icon: const Icon(Icons.logout),
-          ),
-        ],
-      ),
-      body: SafeArea(
+    return _frame(
+      SafeArea(
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(LamsaSpacing.lg),
@@ -105,6 +111,28 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _ApprovalCard(profile: _profile!),
+                  const SizedBox(height: LamsaSpacing.md),
+                  LamsaCard(
+                    child: SwitchListTile.adaptive(
+                      key: const ValueKey('accepting-bookings-switch'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(context.lamsa.acceptingBookings),
+                      subtitle: Text(
+                        _profile!.approvalStatus ==
+                                ExpertApprovalStatus.approved
+                            ? context.lamsa.acceptingBookingsHint
+                            : context.lamsa.approvalRequiredToAcceptBookings,
+                      ),
+                      value: _profile!.isAcceptingBookings,
+                      onChanged:
+                          _changingAcceptance ||
+                              (!_profile!.isAcceptingBookings &&
+                                  _profile!.approvalStatus !=
+                                      ExpertApprovalStatus.approved)
+                          ? null
+                          : _setAcceptingBookings,
+                    ),
+                  ),
                   const SizedBox(height: LamsaSpacing.md),
                   if (_error != null) ...[
                     Text(
@@ -210,10 +238,35 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
     );
   }
 
+  ApiFailureKind? _errorKind;
+
+  Widget _frame(Widget body) {
+    if (widget.embedded) return body;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(context.lamsa.expertApp),
+        actions: [
+          IconButton(
+            tooltip: context.lamsa.retry,
+            onPressed: _load,
+            icon: const Icon(Icons.refresh),
+          ),
+          IconButton(
+            tooltip: context.lamsa.logout,
+            onPressed: widget.manager.logout,
+            icon: const Icon(Icons.logout),
+          ),
+        ],
+      ),
+      body: body,
+    );
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _errorKind = null;
     });
     try {
       final results = await Future.wait([
@@ -230,11 +283,37 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
         _bio.text = profile.bio ?? '';
       });
     } on ApiFailure catch (failure) {
-      if (mounted) setState(() => _error = failure.message);
+      if (mounted) {
+        setState(() {
+          _error = failure.message;
+          _errorKind = failure.kind;
+        });
+      }
     } on Object {
-      if (mounted) setState(() => _error = 'تعذر قراءة ملف الخبيرة');
+      if (mounted) setState(() => _error = context.lamsa.profileLoadFailed);
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _setAcceptingBookings(bool value) async {
+    setState(() {
+      _changingAcceptance = true;
+      _error = null;
+    });
+    try {
+      final profile = await widget.api.setAcceptingBookings(value);
+      if (!mounted) return;
+      setState(() => _profile = profile);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.lamsa.acceptingBookingsUpdated)),
+      );
+    } on ApiFailure catch (failure) {
+      if (mounted) setState(() => _error = failure.message);
+    } on Object {
+      if (mounted) setState(() => _error = context.lamsa.updateFailed);
+    } finally {
+      if (mounted) setState(() => _changingAcceptance = false);
     }
   }
 
@@ -285,7 +364,7 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
       if (result == null) return;
       final file = result.files.single;
       if (file.size > 5 * 1024 * 1024) {
-        setState(() => _error = 'حجم الملف يتجاوز 5MB');
+        setState(() => _error = context.lamsa.fileTooLarge5MiB);
         return;
       }
       final extension = file.extension?.toLowerCase();
@@ -297,12 +376,12 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
         _ => null,
       };
       if (contentType == null) {
-        setState(() => _error = 'نوع الملف غير مدعوم');
+        setState(() => _error = context.lamsa.unsupportedFileType);
         return;
       }
       final path = file.path;
       if (path == null) {
-        setState(() => _error = 'تعذر قراءة الملف المختار');
+        setState(() => _error = context.lamsa.fileReadFailed);
         return;
       }
       setState(() {
@@ -319,7 +398,7 @@ class _ExpertProfileScreenState extends State<ExpertProfileScreen>
     } on ApiFailure catch (failure) {
       if (mounted) setState(() => _error = failure.message);
     } on Object {
-      if (mounted) setState(() => _error = 'تعذر قراءة أو رفع الملف المختار');
+      if (mounted) setState(() => _error = context.lamsa.fileUploadFailed);
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -343,7 +422,7 @@ class _ApprovalCard extends StatelessWidget {
       ExpertApprovalStatus.approved => (
         Icons.verified_rounded,
         context.lamsa.approvedAccount,
-        context.lamsa.approvedAccountMessage,
+        context.lamsa.approvedAccountWorkspaceMessage,
         LamsaColors.success,
       ),
       ExpertApprovalStatus.suspended => (

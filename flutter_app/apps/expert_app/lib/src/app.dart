@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lamsa_authentication/lamsa_authentication.dart';
+import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
-import 'expert_profile_screen.dart';
+import 'workspace_shell.dart';
 
 final appConfigProvider = Provider<AppConfig>(
   (ref) => AppConfig.fromDartDefines(),
@@ -49,6 +50,12 @@ final authenticatedApiClientProvider = Provider<ApiClient>(
 final expertApiProvider = Provider<ExpertGateway>(
   (ref) => ExpertApi(ref.watch(authenticatedApiClientProvider)),
 );
+final expertWorkspaceApiProvider = Provider<ExpertWorkspaceGateway>(
+  (ref) => ExpertWorkspaceApi(ref.watch(authenticatedApiClientProvider)),
+);
+final catalogApiProvider = Provider<CatalogGateway>(
+  (ref) => CatalogApi(ref.watch(authenticatedApiClientProvider)),
+);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionManagerProvider);
@@ -64,7 +71,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         SessionPhase.expired ||
         SessionPhase.wrongRole => location == '/auth' ? null : '/auth',
         SessionPhase.authenticated =>
-          location == '/profile' ? null : '/profile',
+          location == '/workspace' ? null : '/workspace',
       };
     },
     routes: [
@@ -90,10 +97,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/profile',
-        builder: (context, state) => ExpertProfileScreen(
+        path: '/workspace',
+        builder: (context, state) => ExpertWorkspaceShell(
           manager: session,
-          api: ref.read(expertApiProvider),
+          expertApi: ref.read(expertApiProvider),
+          workspaceApi: ref.read(expertWorkspaceApiProvider),
+          catalogApi: ref.read(catalogApiProvider),
         ),
       ),
     ],
@@ -111,7 +120,7 @@ class ExpertApp extends ConsumerWidget {
     final network = ref.watch(networkStateProvider);
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      title: 'لمسة خبيرة',
+      onGenerateTitle: (context) => context.lamsa.expertApp,
       locale: const Locale('ar'),
       supportedLocales: LamsaLocalizations.supportedLocales,
       localizationsDelegates: LamsaLocalizations.localizationsDelegates,

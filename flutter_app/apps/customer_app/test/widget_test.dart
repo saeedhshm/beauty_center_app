@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamsa_authentication/lamsa_authentication.dart';
+import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_customer/src/app.dart';
 
 void main() {
@@ -24,7 +25,7 @@ void main() {
     expect(find.text('نسيت كلمة المرور'), findsOneWidget);
   });
 
-  testWidgets('authenticated customer sees only her account profile', (
+  testWidgets('authenticated customer can open her preserved account profile', (
     tester,
   ) async {
     final manager = await authenticatedManager(AuthRole.customer);
@@ -35,11 +36,16 @@ void main() {
           accountApiProvider.overrideWithValue(
             FakeAccountGateway(manager.user!),
           ),
+          catalogApiProvider.overrideWithValue(FakeCatalogGateway()),
+          addressApiProvider.overrideWithValue(FakeAddressGateway()),
           networkStateProvider.overrideWith((ref) => Stream.value(true)),
         ],
         child: const CustomerApp(),
       ),
     );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('الحساب'));
     await tester.pumpAndSettle();
 
     expect(find.text('الملف الشخصي'), findsOneWidget);
@@ -127,4 +133,73 @@ class FakeAccountGateway implements AccountGateway {
   Future<AuthUser> currentUser() async => user;
   @override
   Future<AuthUser> updateName(String name) async => user;
+}
+
+class FakeCatalogGateway implements CatalogGateway {
+  @override
+  Future<List<CatalogCity>> cities() async => const [
+    CatalogCity(id: 1, name: 'مدينة اختبار', code: 'TEST', isActive: true),
+  ];
+
+  @override
+  Future<CatalogPage<CatalogService>> services({
+    int page = 1,
+    int limit = 20,
+  }) async => const CatalogPage(items: [], page: 1, limit: 20, hasNext: false);
+
+  @override
+  Future<CatalogPage<PublicExpert>> experts({
+    int page = 1,
+    int limit = 20,
+    int? cityId,
+    int? serviceId,
+    String? q,
+  }) async => const CatalogPage(items: [], page: 1, limit: 20, hasNext: false);
+
+  @override
+  Future<ExpertDetail> expert(String id) => throw UnimplementedError();
+
+  @override
+  Future<List<PortfolioItem>> portfolio(
+    String expertId, {
+    bool authenticated = false,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<int>> portfolioBytes(
+    String relativeUrl, {
+    bool authenticated = false,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<CatalogPage<PublicReview>> reviews(
+    String expertId, {
+    int page = 1,
+    int limit = 20,
+  }) => throw UnimplementedError();
+}
+
+class FakeAddressGateway implements AddressGateway {
+  @override
+  Future<CatalogPage<CustomerAddress>> list({
+    int page = 1,
+    int limit = 20,
+  }) async => const CatalogPage(items: [], page: 1, limit: 20, hasNext: false);
+
+  @override
+  Future<CustomerAddress> create({
+    required String label,
+    required String addressText,
+    required int cityId,
+    String? lat,
+    String? lng,
+    bool isDefault = false,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> delete(String id) => throw UnimplementedError();
+
+  @override
+  Future<CustomerAddress> update(String id, AddressDraft input) =>
+      throw UnimplementedError();
 }
