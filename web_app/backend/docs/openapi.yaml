@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Lamsa Backend API
-  version: 0.7.0
+  version: 0.8.0
   description: >-
     Managed active cities, EGP/SAR market currency and Africa/Cairo time zone,
     mobile and admin authentication,
@@ -579,6 +579,8 @@ paths:
     $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1cities'
   /api/v1/admin/cities/{id}:
     $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1cities~1{id}'
+  /api/v1/admin/cities/{id}/boundary:
+    $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1cities~1{id}~1boundary'
   /api/v1/admin/services:
     $ref: './catalog.openapi.yaml#/paths/~1api~1v1~1admin~1services'
   /api/v1/admin/services/{id}:

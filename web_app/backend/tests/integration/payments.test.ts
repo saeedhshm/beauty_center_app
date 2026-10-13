@@ -69,7 +69,7 @@ async function harness() {
       slots: [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({ dayOfWeek, startTime: '09:00', endTime: '21:00' })),
     });
     const customer = await register('customer');
-    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
     const from = tomorrowCairo();
     const slots = (await request(app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
     const booking = (await request(app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({ expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: slots[0].startsAt })).body.data;
@@ -91,7 +91,7 @@ it('guards payment initiation by booking state, role and ownership', async () =>
   const from = tomorrowCairo();
   const slots = (await request(h.app).get(`/api/v1/experts/${fresh.expert.user.id}/slots`).query({ serviceId: fresh.service.id, from, to: from })).body.data.days[0].slots;
   const customer2 = await h.register('customer');
-  const address2 = (await request(h.app).post('/api/v1/addresses').auth(customer2.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address' })).body.data;
+  const address2 = (await request(h.app).post('/api/v1/addresses').auth(customer2.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700' })).body.data;
   const notAccepted = await request(h.app).post('/api/v1/bookings').auth(customer2.accessToken, { type: 'bearer' }).send({ expertId: fresh.expert.user.id, serviceId: fresh.service.id, addressId: address2.id, startsAt: slots[1].startsAt });
   expect((await request(h.app).post(`/api/v1/bookings/${notAccepted.body.data.id}/payments`).auth(customer2.accessToken, { type: 'bearer' })).status).toBe(409);
   const initiated = await request(h.app).post(`/api/v1/bookings/${booking.id}/payments`).auth(customer.accessToken, { type: 'bearer' });

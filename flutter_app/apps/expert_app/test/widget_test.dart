@@ -154,6 +154,9 @@ class FakeWorkspaceGateway implements ExpertWorkspaceGateway {
 
 class FakeCatalogGateway implements CatalogGateway {
   @override
+  Future<PublicMapConfiguration> mapConfiguration() =>
+      throw UnimplementedError();
+  @override
   Future<List<CatalogCity>> cities() async => const [];
   @override
   Future<ExpertDetail> expert(String id) => throw UnimplementedError();
@@ -164,6 +167,7 @@ class FakeCatalogGateway implements CatalogGateway {
     int? cityId,
     int? serviceId,
     String? q,
+    ExpertSort sort = ExpertSort.nameAsc,
   }) => throw UnimplementedError();
   @override
   Future<List<PortfolioItem>> portfolio(

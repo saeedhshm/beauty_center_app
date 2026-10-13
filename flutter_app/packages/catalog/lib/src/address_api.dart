@@ -46,8 +46,8 @@ abstract interface class AddressGateway {
     required String label,
     required String addressText,
     required int cityId,
-    String? lat,
-    String? lng,
+    required String lat,
+    required String lng,
     bool isDefault = false,
   });
 
@@ -81,8 +81,8 @@ class AddressApi implements AddressGateway {
     required String label,
     required String addressText,
     required int cityId,
-    String? lat,
-    String? lng,
+    required String lat,
+    required String lng,
     bool isDefault = false,
   }) async {
     final input = AddressDraft(
@@ -91,7 +91,7 @@ class AddressApi implements AddressGateway {
       cityId: cityId,
       lat: lat,
       lng: lng,
-      includeCoordinates: lat != null || lng != null,
+      includeCoordinates: true,
       isDefault: isDefault,
     );
     final body = await _client.post<JsonObject>(

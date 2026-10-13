@@ -258,6 +258,10 @@ class _WorkspaceGateway implements ExpertWorkspaceGateway {
 
 class _CatalogGateway implements CatalogGateway {
   @override
+  Future<PublicMapConfiguration> mapConfiguration() =>
+      throw UnimplementedError();
+
+  @override
   Future<CatalogPage<CatalogService>> services({
     int page = 1,
     int limit = 20,
@@ -286,6 +290,7 @@ class _CatalogGateway implements CatalogGateway {
     int? cityId,
     int? serviceId,
     String? q,
+    ExpertSort sort = ExpertSort.nameAsc,
   }) => throw UnimplementedError();
   @override
   Future<List<PortfolioItem>> portfolio(

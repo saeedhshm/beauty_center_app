@@ -71,7 +71,7 @@ async function harness() {
     const schedule = await request(app).put('/api/v1/experts/me/availability').auth(expert.accessToken, { type: 'bearer' }).send({ slots: week });
     expect(schedule.status).toBe(200);
     const customer = await register('customer');
-    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId: targetCityId, label: 'home', addressText: 'Synthetic service address', isDefault: true })).body.data;
+    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId: targetCityId, label: 'home', addressText: 'Synthetic service address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
     return { expert, customer, service, address };
   }
   return { app, admin, adminId, cityId, register, readyExpert };
@@ -82,6 +82,10 @@ it('offers catalog, availability and booking in every active managed city', asyn
   const suffix = randomInt(100000, 999999).toString();
   const city = (await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' })
     .send({ name: `مدينة جديدة ${suffix}`, code: `EG-N${suffix}` })).body.data;
+  await request(h.app).put(`/api/v1/admin/cities/${city.id}/boundary`).auth(h.admin.accessToken, { type: 'bearer' }).send({
+    geometry: { type: 'Polygon', coordinates: [[[31, 30], [32, 30], [32, 31], [31, 31], [31, 30]]] },
+    bounds: { south: '30', west: '31', north: '31', east: '32' }, sourceRef: 'relation/test-fixture',
+  });
   await request(h.app).patch(`/api/v1/admin/cities/${city.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
   try {
     const { expert, customer, service, address } = await h.readyExpert(60, city.id);
@@ -99,6 +103,19 @@ it('offers catalog, availability and booking in every active managed city', asyn
   } finally {
     await request(h.app).patch(`/api/v1/admin/cities/${city.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: false });
   }
+});
+
+it('revalidates a saved address boundary when creating a booking', async () => {
+  const h = await harness();
+  const { expert, customer, service, address } = await h.readyExpert();
+  const from = tomorrowCairo();
+  const slots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
+  await pool.query("update customer_addresses set lat='29.900000',lng='30.900000' where id=$1", [address.id]);
+  const result = await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({
+    expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: slots[0].startsAt,
+  });
+  expect(result.status).toBe(422);
+  expect(result.body.error.code).toBe('ADDRESS_OUTSIDE_CITY');
 });
 
 it('validates weekly schedules and reflects exceptions in offered slots', async () => {
@@ -218,7 +235,7 @@ it('blocks concurrent accepts on the same period and keeps the loser pending', a
   const h = await harness();
   const first = await h.readyExpert();
   const secondCustomer = await h.register('customer');
-  const secondAddress = (await request(h.app).post('/api/v1/addresses').auth(secondCustomer.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address' })).body.data;
+  const secondAddress = (await request(h.app).post('/api/v1/addresses').auth(secondCustomer.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700' })).body.data;
   const from = tomorrowCairo();
   const slots = (await request(h.app).get(`/api/v1/experts/${first.expert.user.id}/slots`).query({ serviceId: first.service.id, from, to: from })).body.data.days[0].slots;
   const startsAt = slots[0].startsAt as string;

@@ -72,9 +72,14 @@ void main() {
       },
     ]);
 
-    final page = await CatalogApi(
-      client,
-    ).experts(page: 2, limit: 10, cityId: 1, serviceId: 3, q: 'نور');
+    final page = await CatalogApi(client).experts(
+      page: 2,
+      limit: 10,
+      cityId: 1,
+      serviceId: 3,
+      q: 'نور',
+      sort: ExpertSort.ratingDesc,
+    );
 
     expect(page.items.single.ratingAvg, '5.00');
     expect(adapter.last.path, '/api/v1/experts');
@@ -84,8 +89,52 @@ void main() {
       'cityId': 1,
       'serviceId': 3,
       'q': 'نور',
+      'sort': 'rating_desc',
     });
     expect(adapter.last.headers['Authorization'], isNull);
+  });
+
+  test('map configuration is loaded from the public configuration', () async {
+    adapter.respondWith = envelope({
+      'map': {
+        'type': 'raster',
+        'tileUrlTemplate': 'https://tiles.example/{z}/{x}/{y}.png',
+        'minZoom': 1,
+        'maxZoom': 18,
+        'attribution': {
+          'text': 'Map contributors',
+          'url': 'https://tiles.example/copyright',
+        },
+        'reportIssueUrl': 'https://tiles.example/report',
+      },
+    });
+
+    final configuration = await CatalogApi(client).mapConfiguration();
+
+    expect(adapter.last.path, '/api/v1/configuration');
+    expect(configuration.tileUrlTemplate, contains('{z}'));
+    expect(configuration.maxZoom, 18);
+  });
+
+  test('expert discovery always sends the default sort', () async {
+    adapter.respondWith = pageEnvelope(const []);
+
+    await CatalogApi(client).experts();
+
+    expect(adapter.last.queryParameters, {
+      'page': 1,
+      'limit': 20,
+      'sort': 'name_asc',
+    });
+  });
+
+  test('price sorting requires a service before making a request', () async {
+    final api = CatalogApi(client);
+
+    for (final sort in [ExpertSort.priceAsc, ExpertSort.priceDesc]) {
+      await expectLater(api.experts(sort: sort), throwsArgumentError);
+    }
+    expect(adapter.calls, isEmpty);
   });
 
   test('address update can explicitly clear both coordinates', () async {
@@ -109,26 +158,13 @@ void main() {
     expect(adapter.last.headers['Authorization'], 'Bearer access-token');
   });
 
-  test(
-    'coordinate validation rejects partial pairs before a request',
-    () async {
-      expect(
-        () =>
-            const AddressDraft(includeCoordinates: true, lat: '30.1').toJson(),
-        throwsFormatException,
-      );
-      await expectLater(
-        AddressApi(client).create(
-          label: 'المنزل',
-          addressText: 'شارع الاختبار',
-          cityId: 1,
-          lat: '30.1',
-        ),
-        throwsFormatException,
-      );
-      expect(adapter.calls, isEmpty);
-    },
-  );
+  test('coordinate validation rejects partial update pairs', () {
+    expect(
+      () => const AddressDraft(includeCoordinates: true, lat: '30.1').toJson(),
+      throwsFormatException,
+    );
+    expect(adapter.calls, isEmpty);
+  });
 
   test('workspace upload includes serviceId and authentication', () async {
     adapter.respondWith = envelope({

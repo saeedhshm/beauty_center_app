@@ -28,6 +28,7 @@ export function catalogRoutes(service: CatalogService, auth: AuthService) {
   router.get('/admin/cities', c.adminCities);
   router.post('/admin/cities', c.addCity);
   router.patch('/admin/cities/:id', c.editCity);
+  router.put('/admin/cities/:id/boundary', c.replaceCityBoundary);
   router.delete('/admin/cities/:id', c.deleteCity);
   router.get('/admin/services', c.adminServices);
   router.post('/admin/services', c.addService);

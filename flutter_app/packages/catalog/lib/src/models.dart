@@ -36,6 +36,7 @@ class CatalogCity {
     required this.name,
     required this.code,
     required this.isActive,
+    this.location = const CityLocation.notConfigured(),
   });
 
   factory CatalogCity.fromJson(JsonObject json) => CatalogCity(
@@ -43,12 +44,120 @@ class CatalogCity {
     name: _value<String>(json, 'name'),
     code: _nullable<String>(json, 'code'),
     isActive: _value<bool>(json, 'isActive'),
+    location: json.containsKey('location')
+        ? CityLocation.fromJson(_object(json, 'location'))
+        : const CityLocation.notConfigured(),
   );
 
   final int id;
   final String name;
   final String? code;
   final bool isActive;
+  final CityLocation location;
+}
+
+enum CityLocationStatus { ready, notConfigured }
+
+class CityLocation {
+  const CityLocation.ready(this.bounds) : status = CityLocationStatus.ready;
+
+  const CityLocation.notConfigured()
+    : status = CityLocationStatus.notConfigured,
+      bounds = null;
+
+  factory CityLocation.fromJson(JsonObject json) {
+    return switch (_value<String>(json, 'status')) {
+      'ready' => CityLocation.ready(
+        MapBounds.fromJson(_object(json, 'bounds')),
+      ),
+      'not_configured' => const CityLocation.notConfigured(),
+      _ => throw const FormatException('Invalid location status'),
+    };
+  }
+
+  final CityLocationStatus status;
+  final MapBounds? bounds;
+}
+
+class MapBounds {
+  const MapBounds({
+    required this.south,
+    required this.west,
+    required this.north,
+    required this.east,
+  }) : assert(south >= -90 && south < north && north <= 90),
+       assert(west >= -180 && west < east && east <= 180);
+
+  factory MapBounds.fromJson(JsonObject json) {
+    final south = _decimal(json, 'south');
+    final west = _decimal(json, 'west');
+    final north = _decimal(json, 'north');
+    final east = _decimal(json, 'east');
+    if (south < -90 || south >= north || north > 90) {
+      throw const FormatException('Invalid latitude bounds');
+    }
+    if (west < -180 || west >= east || east > 180) {
+      throw const FormatException('Invalid longitude bounds');
+    }
+    return MapBounds(south: south, west: west, north: north, east: east);
+  }
+
+  final double south;
+  final double west;
+  final double north;
+  final double east;
+
+  bool contains(double latitude, double longitude) =>
+      latitude >= south &&
+      latitude <= north &&
+      longitude >= west &&
+      longitude <= east;
+}
+
+class PublicMapConfiguration {
+  const PublicMapConfiguration({
+    required this.tileUrlTemplate,
+    required this.minZoom,
+    required this.maxZoom,
+    required this.attributionUrl,
+    required this.reportIssueUrl,
+  });
+
+  factory PublicMapConfiguration.fromJson(JsonObject json) {
+    if (_value<String>(json, 'type') != 'raster') {
+      throw const FormatException('Unsupported map type');
+    }
+    final tileUrlTemplate = _value<String>(json, 'tileUrlTemplate');
+    final minZoom = _value<int>(json, 'minZoom');
+    final maxZoom = _value<int>(json, 'maxZoom');
+    final attribution = _object(json, 'attribution');
+    final attributionUrl = Uri.tryParse(_value<String>(attribution, 'url'));
+    final reportIssueUrl = Uri.tryParse(_value<String>(json, 'reportIssueUrl'));
+    if (!tileUrlTemplate.startsWith('https://') ||
+        !tileUrlTemplate.contains('{z}') ||
+        !tileUrlTemplate.contains('{x}') ||
+        !tileUrlTemplate.contains('{y}') ||
+        minZoom < 0 ||
+        minZoom >= maxZoom ||
+        maxZoom > 24 ||
+        attributionUrl?.scheme != 'https' ||
+        reportIssueUrl?.scheme != 'https') {
+      throw const FormatException('Invalid map configuration');
+    }
+    return PublicMapConfiguration(
+      tileUrlTemplate: tileUrlTemplate,
+      minZoom: minZoom,
+      maxZoom: maxZoom,
+      attributionUrl: attributionUrl!,
+      reportIssueUrl: reportIssueUrl!,
+    );
+  }
+
+  final String tileUrlTemplate;
+  final int minZoom;
+  final int maxZoom;
+  final Uri attributionUrl;
+  final Uri reportIssueUrl;
 }
 
 class CatalogService {
@@ -309,6 +418,14 @@ T? _optional<T>(JsonObject json, String key) {
   if (value == null) return null;
   if (value is! T) throw FormatException('Invalid $key');
   return value as T;
+}
+
+double _decimal(JsonObject json, String key) {
+  final value = json[key];
+  if (value is! String) throw FormatException('Invalid $key');
+  final number = double.tryParse(value);
+  if (number == null || !number.isFinite) throw FormatException('Invalid $key');
+  return number;
 }
 
 JsonObject _object(JsonObject json, String key) => _asObject(json[key], key);

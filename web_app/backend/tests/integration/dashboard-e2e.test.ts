@@ -106,7 +106,7 @@ describe('D6 admin acceptance journey (real API, labeled Demo adapters)', () => 
     // 4. Booking follow-up: create, accept, track the status history.
     const customer = await h.register('customer');
     const address = (await request(h.app).post('/api/v1/addresses').auth(customer.accessToken, bearer)
-      .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+      .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
     const from = tomorrowCairo();
     const start = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`)
       .query({ serviceId, from, to: from })).body.data.days[0].slots[0].startsAt as string;
@@ -182,7 +182,7 @@ describe('D6 admin acceptance journey (real API, labeled Demo adapters)', () => 
     }
     const customer = await h.register('customer');
     const address = (await request(h.app).post('/api/v1/addresses').auth(customer.accessToken, bearer)
-      .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+      .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
     const from = tomorrowCairo();
     const start = (await request(h.app).get(`/api/v1/experts/${first.user.id}/slots`)
       .query({ serviceId: service.id, from, to: from })).body.data.days[0].slots[0].startsAt as string;

@@ -4,7 +4,7 @@ import type { createDatabase } from '../../db/client.js';
 import { cities, customerAddresses, expertProfiles, expertServices, portfolioImages, services, settings, users } from '../../db/schema/core.js';
 import { adminAuditLogs } from '../../db/schema/admin.js';
 import { MARKET } from '../../config/market.js';
-import type { addressPatchSchema, servicePatchSchema, CityInput, ExpertQuery, Page } from './catalog.validation.js';
+import type { addressPatchSchema, servicePatchSchema, CityBoundaryInput, CityInput, ExpertQuery, Page } from './catalog.validation.js';
 
 type Database = ReturnType<typeof createDatabase>['db'];
 type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0];
@@ -38,6 +38,17 @@ export class CatalogRepository {
   }
   async changeCity(id: number, isActive: boolean) {
     const [row] = await this.db.update(cities).set({ isActive, updatedAt: new Date() }).where(eq(cities.id, id)).returning();
+    return row!;
+  }
+  async replaceCityBoundary(id: number, input: CityBoundaryInput) {
+    const [row] = await this.db.update(cities).set({
+      boundary: input.geometry,
+      boundaryBounds: input.bounds,
+      boundarySource: 'openstreetmap',
+      boundarySourceRef: input.sourceRef,
+      boundaryUpdatedAt: new Date(),
+      updatedAt: new Date(),
+    }).where(eq(cities.id, id)).returning();
     return row!;
   }
   async removeCity(id: number) {
@@ -106,8 +117,24 @@ export class CatalogRepository {
       query?.q ? ilike(users.name, `%${query.q.replace(/[\\%_]/g, '\\$&')}%`) : undefined);
   }
   publicExperts(query: ExpertQuery, currency: string) {
-    return this.db.select(publicExpertFields).from(users).innerJoin(expertProfiles, eq(users.id, expertProfiles.userId)).innerJoin(cities, eq(users.cityId, cities.id))
-      .where(this.published(currency, query)).orderBy(asc(users.name), asc(users.id)).limit(query.limit + 1).offset((query.page - 1) * query.limit);
+    const base = this.db.select(publicExpertFields).from(users)
+      .innerJoin(expertProfiles, eq(users.id, expertProfiles.userId))
+      .innerJoin(cities, eq(users.cityId, cities.id));
+    const selected = query.sort.startsWith('price_')
+      ? base.innerJoin(expertServices, and(
+        eq(expertServices.expertId, users.id),
+        eq(expertServices.serviceId, query.serviceId!),
+        eq(expertServices.isActive, true),
+        eq(expertServices.currency, currency),
+      ))
+      : base;
+    const order = query.sort === 'name_desc' ? [desc(users.name), asc(users.id)]
+      : query.sort === 'rating_desc' ? [desc(users.ratingAvg), desc(users.ratingCount), asc(users.name), asc(users.id)]
+        : query.sort === 'price_asc' ? [asc(expertServices.price), asc(users.name), asc(users.id)]
+          : query.sort === 'price_desc' ? [desc(expertServices.price), asc(users.name), asc(users.id)]
+            : [asc(users.name), asc(users.id)];
+    return selected.where(this.published(currency, query)).orderBy(...order)
+      .limit(query.limit + 1).offset((query.page - 1) * query.limit);
   }
   async publicExpert(id: string, currency?: string) {
     if (!currency) {

@@ -65,7 +65,7 @@ async function harness() {
     const week = [1, 2, 3, 4, 5, 6, 7].map((dayOfWeek) => ({ dayOfWeek, startTime: '09:00', endTime: '21:00' }));
     await request(app).put('/api/v1/experts/me/availability').auth(expert.data.accessToken, { type: 'bearer' }).send({ slots: week });
     const customer = await register('customer');
-    const address = (await request(app).post('/api/v1/addresses').auth(customer.data.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+    const address = (await request(app).post('/api/v1/addresses').auth(customer.data.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
     const from = tomorrowCairo();
     const slots = (await request(app).get(`/api/v1/experts/${expert.data.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
     return { expert, customer, service, address, startsAt: slots[0].startsAt as string };
@@ -99,7 +99,7 @@ it('rejects malformed keys and scopes keys per customer', async () => {
   const mine = await request(h.app).post('/api/v1/bookings').auth(customer.data.accessToken, { type: 'bearer' }).set('Idempotency-Key', key).send(body);
   expect(mine.status).toBe(201);
   // Same key from another customer starts its own attempt instead of replaying mine.
-  const otherAddress = (await request(h.app).post('/api/v1/addresses').auth(other.data.accessToken, { type: 'bearer' }).send({ cityId: address.cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+  const otherAddress = (await request(h.app).post('/api/v1/addresses').auth(other.data.accessToken, { type: 'bearer' }).send({ cityId: address.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
   const theirs = await request(h.app).post('/api/v1/bookings').auth(other.data.accessToken, { type: 'bearer' }).set('Idempotency-Key', key)
     .send({ expertId: expert.data.user.id, serviceId: service.id, addressId: otherAddress.id, startsAt });
   expect(theirs.status).toBe(201);

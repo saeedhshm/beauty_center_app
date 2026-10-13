@@ -1,15 +1,25 @@
 import type { z } from 'zod';
-import { MARKET } from '../../config/market.js';
+import { MARKET, PUBLIC_MAP_CONFIG } from '../../config/market.js';
 import { AppError } from '../../shared/app-error.js';
+import { boundaryCoversPoint, type BoundaryBounds, type BoundaryGeometry } from '../../shared/geojson.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { CatalogRepository } from './catalog.repository.js';
-import { bookingPolicySchema, marketSettingsSchema, type addressPatchSchema, type policyPatchSchema, type servicePatchSchema, type AddressInput, type CityInput, type ExpertPatch, type ExpertQuery, type Page, type ServiceInput } from './catalog.validation.js';
+import { bookingPolicySchema, marketSettingsSchema, type addressPatchSchema, type policyPatchSchema, type servicePatchSchema, type AddressInput, type CityBoundaryInput, type CityInput, type ExpertPatch, type ExpertQuery, type Page, type ServiceInput } from './catalog.validation.js';
 
 const requireRole = (user: AuthenticatedUser, role: string) => { if (user.role !== role) throw new AppError(403, 'FORBIDDEN', 'ليس لديك صلاحية لهذه العملية'); };
 const notFound = () => new AppError(404, 'NOT_FOUND', 'البيانات المطلوبة غير موجودة');
 const paginate = <T>(rows: T[], page: Page) => ({ items: rows.slice(0, page.limit), pagination: { ...page, hasNext: rows.length > page.limit } });
 const serviceDto = (row: { id: number; name: string; description: string | null; durationMin: number; isActive: boolean }) => ({ id: row.id, name: row.name, description: row.description, durationMin: row.durationMin, isActive: row.isActive });
-const cityDto = (row: { id: number; name: string; code: string | null; isActive: boolean }) => ({ id: row.id, name: row.name, code: row.code, isActive: row.isActive });
+type CityLocationRow = {
+  id: number; name: string; code: string | null; isActive: boolean;
+  boundary: unknown; boundaryBounds: unknown;
+};
+const cityDto = (row: CityLocationRow) => ({
+  id: row.id, name: row.name, code: row.code, isActive: row.isActive,
+  location: row.boundary && row.boundaryBounds
+    ? { status: 'ready' as const, bounds: row.boundaryBounds as BoundaryBounds }
+    : { status: 'not_configured' as const },
+});
 const isUniqueViolation = (error: unknown) => (error as { code?: string })?.code === '23505'
   || (error as { cause?: { code?: string } })?.cause?.code === '23505';
 const isForeignKeyViolation = (error: unknown) => (error as { code?: string })?.code === '23503'
@@ -21,7 +31,7 @@ export class CatalogService {
   async configuration() {
     const [city, cities, policy, market] = await Promise.all([this.repo.launchCity(), this.repo.listCities(true), this.repo.policy(), this.repo.market()]);
     if (!city || !policy || !market) throw new AppError(503, 'CONFIGURATION_UNAVAILABLE', 'إعدادات التشغيل غير مكتملة');
-    return { launchCity: cityDto(city), cities: cities.map(cityDto), currency: marketSettingsSchema.parse(market.value).currency, timeZone: MARKET.timeZone, paymentMode: MARKET.paymentMode, daytimeOnly: MARKET.daytimeOnly, bookingPolicy: bookingPolicySchema.parse(policy.value) };
+    return { launchCity: cityDto(city), cities: cities.map(cityDto), map: PUBLIC_MAP_CONFIG, currency: marketSettingsSchema.parse(market.value).currency, timeZone: MARKET.timeZone, paymentMode: MARKET.paymentMode, daytimeOnly: MARKET.daytimeOnly, bookingPolicy: bookingPolicySchema.parse(policy.value) };
   }
   async listCities(admin = false) {
     return (await this.repo.listCities(!admin)).map(cityDto);
@@ -56,8 +66,21 @@ export class CatalogService {
     requireRole(actor, 'admin');
     return this.repo.transaction(async (repo) => {
       const city = await repo.city(id, true); if (!city) throw notFound();
+      if (isActive && !city.boundary) throw new AppError(409, 'CITY_BOUNDARY_REQUIRED', 'يلزم إعداد حدود المدينة قبل تفعيلها');
       const after = await repo.changeCity(id, isActive);
       await repo.audit(actor.id, 'city.updated', 'city', String(id), { before: { isActive: city.isActive }, after: { isActive } });
+      return cityDto(after);
+    });
+  }
+  async replaceCityBoundary(actor: AuthenticatedUser, id: number, input: CityBoundaryInput) {
+    requireRole(actor, 'admin');
+    return this.repo.transaction(async (repo) => {
+      const city = await repo.city(id, true); if (!city) throw notFound();
+      if (city.isActive) throw new AppError(409, 'CITY_MUST_BE_INACTIVE', 'عطّلي المدينة قبل استبدال حدودها');
+      const after = await repo.replaceCityBoundary(id, input);
+      await repo.audit(actor.id, 'city.boundary_updated', 'city', String(id), {
+        source: 'openstreetmap', sourceRef: input.sourceRef, bounds: input.bounds,
+      });
       return cityDto(after);
     });
   }
@@ -113,6 +136,14 @@ export class CatalogService {
   private async activeCity(repo: CatalogRepository, id: number) {
     const city = await repo.city(id);
     if (!city?.isActive) throw new AppError(409, 'CITY_UNAVAILABLE', 'المدينة غير متاحة حاليًا');
+    return city;
+  }
+  private assertLocation(city: { boundary: unknown }, lat: string | null, lng: string | null) {
+    if (!city.boundary) throw new AppError(409, 'CITY_BOUNDARY_REQUIRED', 'حدود المدينة غير مهيأة');
+    if (lat === null || lng === null) throw new AppError(422, 'VALIDATION_ERROR', 'خط العرض والطول مطلوبان');
+    if (!boundaryCoversPoint(city.boundary as BoundaryGeometry, Number(lat), Number(lng))) {
+      throw new AppError(422, 'ADDRESS_OUTSIDE_CITY', 'الموقع المحدد خارج حدود المدينة');
+    }
   }
   private async lockActor(repo: CatalogRepository, actor: AuthenticatedUser, role: string) {
     requireRole(actor, role);
@@ -196,7 +227,8 @@ export class CatalogService {
   async createAddress(actor: AuthenticatedUser, input: AddressInput) {
     return this.repo.transaction(async (repo) => {
       await this.lockActor(repo, actor, 'customer');
-      await this.activeCity(repo, input.cityId);
+      const city = await this.activeCity(repo, input.cityId);
+      this.assertLocation(city, input.lat, input.lng);
       if (input.isDefault) await repo.clearDefault(actor.id);
       return repo.addAddress({ ...input, customerId: actor.id });
     });
@@ -204,8 +236,12 @@ export class CatalogService {
   async updateAddress(actor: AuthenticatedUser, id: string, input: z.infer<typeof addressPatchSchema>) {
     return this.repo.transaction(async (repo) => {
       await this.lockActor(repo, actor, 'customer');
-      if (!await repo.address(actor.id, id)) throw notFound();
-      if (input.cityId !== undefined) await this.activeCity(repo, input.cityId);
+      const current = await repo.address(actor.id, id); if (!current) throw notFound();
+      if (input.cityId !== undefined || input.lat !== undefined || input.lng !== undefined) {
+        const cityId = input.cityId ?? current.cityId;
+        const city = await this.activeCity(repo, cityId);
+        this.assertLocation(city, input.lat ?? current.lat, input.lng ?? current.lng);
+      }
       if (input.isDefault) await repo.clearDefault(actor.id);
       return repo.updateAddress(actor.id, id, input);
     });

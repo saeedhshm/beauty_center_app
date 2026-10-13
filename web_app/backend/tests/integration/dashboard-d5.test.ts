@@ -88,7 +88,7 @@ it('aggregates the admin overview across full data with documented definitions',
   const { expert, service } = await h.readyExpert();
   const customer = await h.register('customer');
   const address = (await request(h.app).post('/api/v1/addresses').auth(customer.accessToken, adminAuth)
-    .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+    .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
   const from = tomorrowCairo();
   const slots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
   const booking = (await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, adminAuth)
@@ -149,7 +149,7 @@ it('lists late paid attempts without settling them', async () => {
   const { expert, service } = await h.readyExpert();
   const customer = await h.register('customer');
   const address = (await request(h.app).post('/api/v1/addresses').auth(customer.accessToken, adminAuth)
-    .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+    .send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
   const from = tomorrowCairo();
   const slots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
   const booking = (await request(h.app).post('/api/v1/bookings').auth(customer.accessToken, adminAuth)

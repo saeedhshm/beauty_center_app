@@ -137,6 +137,10 @@ class FakeAccountGateway implements AccountGateway {
 
 class FakeCatalogGateway implements CatalogGateway {
   @override
+  Future<PublicMapConfiguration> mapConfiguration() =>
+      throw UnimplementedError();
+
+  @override
   Future<List<CatalogCity>> cities() async => const [
     CatalogCity(id: 1, name: 'مدينة اختبار', code: 'TEST', isActive: true),
   ];
@@ -154,6 +158,7 @@ class FakeCatalogGateway implements CatalogGateway {
     int? cityId,
     int? serviceId,
     String? q,
+    ExpertSort sort = ExpertSort.nameAsc,
   }) async => const CatalogPage(items: [], page: 1, limit: 20, hasNext: false);
 
   @override
@@ -191,8 +196,8 @@ class FakeAddressGateway implements AddressGateway {
     required String label,
     required String addressText,
     required int cityId,
-    String? lat,
-    String? lng,
+    required String lat,
+    required String lng,
     bool isDefault = false,
   }) => throw UnimplementedError();
 

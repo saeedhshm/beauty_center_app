@@ -12,6 +12,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   flutter_riverpod: ^3.2.1
+  flutter_map: ^8.3.2
   go_router: ^17.1.0
   lamsa_authentication:
     path: ../../packages/authentication
@@ -23,6 +24,8 @@ dependencies:
     path: ../../packages/localization
   lamsa_networking:
     path: ../../packages/networking
+  latlong2: ^0.9.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

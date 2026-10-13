@@ -4,6 +4,11 @@ import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
+import 'location_picker_screen.dart';
+
+typedef LocationPickerRouteBuilder =
+    Widget Function(CatalogCity city, LocationSelection? initialSelection);
+
 class AddressesScreen extends StatefulWidget {
   const AddressesScreen({
     required this.gateway,
@@ -21,6 +26,7 @@ class AddressesScreen extends StatefulWidget {
 class _AddressesScreenState extends State<AddressesScreen> {
   List<CustomerAddress> _addresses = const [];
   List<CatalogCity> _cities = const [];
+  PublicMapConfiguration? _mapConfiguration;
   int _page = 1;
   bool _hasNext = false;
   bool _loading = true;
@@ -44,7 +50,9 @@ class _AddressesScreenState extends State<AddressesScreen> {
           IconButton(
             key: const Key('add-address'),
             tooltip: context.lamsa.addAddress,
-            onPressed: _cities.isEmpty || _loading ? null : () => _openForm(),
+            onPressed: _cities.isEmpty || _mapConfiguration == null || _loading
+                ? null
+                : () => _openForm(),
             icon: const Icon(Icons.add_location_alt_outlined),
           ),
         ],
@@ -189,14 +197,16 @@ class _AddressesScreenState extends State<AddressesScreen> {
     try {
       final results = await Future.wait([
         widget.catalogGateway.cities(),
+        widget.catalogGateway.mapConfiguration(),
         widget.gateway.list(),
       ]);
-      final addresses = results[1] as CatalogPage<CustomerAddress>;
+      final addresses = results[2] as CatalogPage<CustomerAddress>;
       if (!mounted || generation != _requestGeneration) return;
       setState(() {
         _cities = (results[0] as List<CatalogCity>)
             .where((city) => city.isActive)
             .toList(growable: false);
+        _mapConfiguration = results[1] as PublicMapConfiguration;
         _addresses = addresses.items;
         _page = addresses.page;
         _hasNext = addresses.hasNext;
@@ -263,11 +273,14 @@ class _AddressesScreenState extends State<AddressesScreen> {
   }
 
   Future<void> _openForm([CustomerAddress? address]) async {
+    final mapConfiguration = _mapConfiguration;
+    if (mapConfiguration == null) return;
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => AddressFormScreen(
           gateway: widget.gateway,
           cities: _cities,
+          mapConfiguration: mapConfiguration,
           address: address,
         ),
       ),
@@ -339,27 +352,30 @@ class AddressFormScreen extends StatefulWidget {
   const AddressFormScreen({
     required this.gateway,
     required this.cities,
+    required this.mapConfiguration,
     this.address,
+    this.locationPickerBuilder,
     super.key,
   });
 
   final AddressGateway gateway;
   final List<CatalogCity> cities;
+  final PublicMapConfiguration mapConfiguration;
   final CustomerAddress? address;
+  final LocationPickerRouteBuilder? locationPickerBuilder;
 
   @override
   State<AddressFormScreen> createState() => _AddressFormScreenState();
 }
 
 class _AddressFormScreenState extends State<AddressFormScreen> {
-  static final _coordinatePattern = RegExp(r'^-?\d{1,3}(?:\.\d{1,6})?$');
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _label;
   late final TextEditingController _addressText;
-  late final TextEditingController _lat;
-  late final TextEditingController _lng;
   late int _cityId;
   late bool _isDefault;
+  LocationSelection? _location;
+  bool _showLocationError = false;
   bool _saving = false;
   String? _serverError;
 
@@ -369,8 +385,9 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     final address = widget.address;
     _label = TextEditingController(text: address?.label);
     _addressText = TextEditingController(text: address?.addressText);
-    _lat = TextEditingController(text: address?.lat);
-    _lng = TextEditingController(text: address?.lng);
+    if (address?.lat != null && address?.lng != null) {
+      _location = LocationSelection(lat: address!.lat!, lng: address.lng!);
+    }
     _cityId =
         address != null &&
             widget.cities.any((city) => city.id == address.cityId)
@@ -383,8 +400,6 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
   void dispose() {
     _label.dispose();
     _addressText.dispose();
-    _lat.dispose();
-    _lng.dispose();
     super.dispose();
   }
 
@@ -447,61 +462,46 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
                               child: Text(city.name),
                             ),
                         ],
-                        onChanged: _saving
-                            ? null
-                            : (value) {
-                                if (value != null) _cityId = value;
-                              },
+                        onChanged: _saving ? null : _changeCity,
                       ),
                       const SizedBox(height: 18),
-                      Text(context.lamsa.optionalCoordinatesTitle),
-                      const SizedBox(height: 4),
-                      Text(
-                        context.lamsa.optionalCoordinatesMessage,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: LamsaTextField(
-                              key: const Key('address-lat'),
-                              label: context.lamsa.latitude,
-                              controller: _lat,
-                              validator: (value) => _validateCoordinate(
-                                value,
-                                other: _lng.text,
-                                min: -90,
-                                max: 90,
-                              ),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: true,
-                                  ),
+                      LamsaCard(
+                        key: const Key('address-location-card'),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              context.lamsa.addressLocation,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: LamsaTextField(
-                              key: const Key('address-lng'),
-                              label: context.lamsa.longitude,
-                              controller: _lng,
-                              validator: (value) => _validateCoordinate(
-                                value,
-                                other: _lat.text,
-                                min: -180,
-                                max: 180,
+                            const SizedBox(height: 8),
+                            if (_location case final location?)
+                              Text(
+                                '${context.lamsa.latitude}: ${location.lat}\n'
+                                '${context.lamsa.longitude}: ${location.lng}',
+                                key: const Key('address-selected-coordinates'),
+                              )
+                            else
+                              Text(context.lamsa.locationRequiredMessage),
+                            if (_showLocationError && _location == null) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                context.lamsa.locationRequiredValidation,
+                                key: const Key('address-location-error'),
+                                style: const TextStyle(
+                                  color: LamsaColors.danger,
+                                ),
                               ),
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                    signed: true,
-                                  ),
+                            ],
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                              key: const Key('choose-address-location'),
+                              onPressed: _saving ? null : _openLocationPicker,
+                              icon: const Icon(Icons.map_outlined),
+                              label: Text(context.lamsa.chooseLocation),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
@@ -543,43 +543,23 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
         : null;
   }
 
-  String? _validateCoordinate(
-    String? value, {
-    required String other,
-    required double min,
-    required double max,
-  }) {
-    final text = value?.trim() ?? '';
-    if (text.isEmpty && other.trim().isEmpty) return null;
-    if (text.isEmpty || other.trim().isEmpty) {
-      return context.lamsa.coordinatesPairValidation;
-    }
-    if (!_coordinatePattern.hasMatch(text)) {
-      return context.lamsa.coordinateRangeValidation(min, max);
-    }
-    final number = double.parse(text);
-    if (number < min || number > max) {
-      return context.lamsa.coordinateRangeValidation(min, max);
-    }
-    return null;
-  }
-
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate()) return;
+    final formValid = _formKey.currentState!.validate();
+    if (_location == null) setState(() => _showLocationError = true);
+    if (!formValid || _location == null) return;
     setState(() {
       _saving = true;
       _serverError = null;
     });
-    final lat = _lat.text.trim();
-    final lng = _lng.text.trim();
+    final location = _location!;
     try {
       if (widget.address == null) {
         await widget.gateway.create(
           label: _label.text.trim(),
           addressText: _addressText.text.trim(),
           cityId: _cityId,
-          lat: lat.isEmpty ? null : lat,
-          lng: lng.isEmpty ? null : lng,
+          lat: location.lat,
+          lng: location.lng,
           isDefault: _isDefault,
         );
       } else {
@@ -589,8 +569,8 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
             label: _label.text.trim(),
             addressText: _addressText.text.trim(),
             cityId: _cityId,
-            lat: lat.isEmpty ? null : lat,
-            lng: lng.isEmpty ? null : lng,
+            lat: location.lat,
+            lng: location.lng,
             includeCoordinates: true,
             isDefault: _isDefault,
           ),
@@ -607,5 +587,36 @@ class _AddressFormScreenState extends State<AddressFormScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  void _changeCity(int? cityId) {
+    if (cityId == null || cityId == _cityId) return;
+    setState(() {
+      _cityId = cityId;
+      _location = null;
+      _showLocationError = false;
+      _serverError = null;
+    });
+  }
+
+  Future<void> _openLocationPicker() async {
+    final city = widget.cities.firstWhere((city) => city.id == _cityId);
+    final selection = await Navigator.of(context).push<LocationSelection>(
+      MaterialPageRoute(
+        builder: (_) =>
+            widget.locationPickerBuilder?.call(city, _location) ??
+            LocationPickerScreen(
+              city: city,
+              mapConfiguration: widget.mapConfiguration,
+              initialSelection: _location,
+            ),
+      ),
+    );
+    if (selection == null || !mounted) return;
+    setState(() {
+      _location = selection;
+      _showLocationError = false;
+      _serverError = null;
+    });
   }
 }

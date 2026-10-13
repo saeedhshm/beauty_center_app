@@ -2,6 +2,7 @@ import { MARKET_TIME_ZONE } from '../../config/scheduling.js';
 import { AppError } from '../../shared/app-error.js';
 import { cairoDateString, cairoWeekday, parseLocalDate } from '../../shared/cairo-time.js';
 import { splitCommission } from '../../shared/money.js';
+import { boundaryCoversPoint, type BoundaryGeometry } from '../../shared/geojson.js';
 import type { AuthenticatedUser } from '../auth/auth.service.js';
 import { bookingPolicySchema, marketSettingsSchema } from '../catalog/catalog.validation.js';
 import { AvailabilityRepository } from '../availability/availability.repository.js';
@@ -129,7 +130,13 @@ export class BookingService {
       if (!customer || customer.role !== 'customer' || !customer.isActive) throw new AppError(403, 'FORBIDDEN', 'الحساب غير مؤهل لهذه العملية');
       const address = await repo.address(actor.id, input.addressId);
       if (!address) throw notFound();
-      if (!await repo.activeCity(address.cityId)) throw new AppError(409, 'CITY_UNAVAILABLE', 'المدينة غير متاحة حاليًا');
+      const city = await repo.activeCity(address.cityId);
+      if (!city) throw new AppError(409, 'CITY_UNAVAILABLE', 'المدينة غير متاحة حاليًا');
+      if (!city.boundary) throw new AppError(409, 'CITY_BOUNDARY_REQUIRED', 'حدود المدينة غير مهيأة');
+      if (address.lat === null || address.lng === null
+        || !boundaryCoversPoint(city.boundary as BoundaryGeometry, Number(address.lat), Number(address.lng))) {
+        throw new AppError(422, 'ADDRESS_OUTSIDE_CITY', 'العنوان المحفوظ لا يقع داخل حدود المدينة');
+      }
       if (!await repo.bookableExpert(input.expertId, address.cityId)) throw new AppError(409, 'EXPERT_UNAVAILABLE', 'الخبيرة غير متاحة للحجز في هذه المدينة حاليًا');
       const service = await repo.service(input.serviceId);
       if (!service?.isActive) throw new AppError(409, 'SERVICE_UNAVAILABLE', 'الخدمة غير متاحة حاليًا');

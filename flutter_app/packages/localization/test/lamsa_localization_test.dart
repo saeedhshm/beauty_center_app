@@ -15,4 +15,14 @@ void main() {
 
     expect(find.text('تطبيق العميلة'), findsOneWidget);
   });
+
+  test('provides expert sort labels in Arabic and English', () {
+    final arabic = LamsaLocalizations(const Locale('ar'));
+    final english = LamsaLocalizations(const Locale('en'));
+
+    expect(arabic.sortExperts, 'ترتيب الخبيرات');
+    expect(arabic.sortPriceAsc, 'السعر: الأقل أولًا');
+    expect(english.sortExperts, 'Sort experts');
+    expect(english.sortRatingDesc, 'Rating: highest first');
+  });
 }

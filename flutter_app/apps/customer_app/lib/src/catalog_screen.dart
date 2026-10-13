@@ -22,6 +22,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   int? _cityId;
   int? _serviceId;
   String? _query;
+  ExpertSort _sort = ExpertSort.nameAsc;
   int _page = 1;
   bool _hasNext = false;
   bool _loading = true;
@@ -193,12 +194,36 @@ class _CatalogScreenState extends State<CatalogScreen> {
                           ),
                       ],
                       onChanged: (value) {
-                        setState(() => _serviceId = value == -1 ? null : value);
-                        _reloadExperts();
+                        _selectService(value == -1 ? null : value);
                       },
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Semantics(
+                label: context.lamsa.sortExperts,
+                child: DropdownButtonFormField<ExpertSort>(
+                  key: const Key('catalog-sort'),
+                  initialValue: _sort,
+                  decoration: InputDecoration(
+                    labelText: context.lamsa.sortExperts,
+                    prefixIcon: const Icon(Icons.sort),
+                  ),
+                  items: [
+                    for (final sort in ExpertSort.values)
+                      if (!sort.requiresService || _serviceId != null)
+                        DropdownMenuItem(
+                          value: sort,
+                          child: Text(_sortLabel(sort)),
+                        ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null || value == _sort) return;
+                    setState(() => _sort = value);
+                    _reloadExperts();
+                  },
+                ),
               ),
               if (_services.isNotEmpty) ...[
                 const SizedBox(height: 24),
@@ -220,8 +245,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         child: InkWell(
                           key: Key('catalog-service-card-${service.id}'),
                           onTap: () {
-                            setState(() => _serviceId = service.id);
-                            _reloadExperts();
+                            _selectService(service.id);
                           },
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,6 +338,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final cityId = _cityId;
     final serviceId = _serviceId;
     final query = _query;
+    final sort = _sort;
     setState(() {
       _experts = const [];
       _page = 1;
@@ -327,8 +352,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
         cityId: cityId,
         serviceId: serviceId,
         q: query,
+        sort: sort,
       );
-      if (!_isCurrentExpertRequest(generation, cityId, serviceId, query)) {
+      if (!_isCurrentExpertRequest(
+        generation,
+        cityId,
+        serviceId,
+        query,
+        sort,
+      )) {
         return;
       }
       setState(() {
@@ -337,11 +369,11 @@ class _CatalogScreenState extends State<CatalogScreen> {
         _hasNext = result.hasNext;
       });
     } catch (error) {
-      if (_isCurrentExpertRequest(generation, cityId, serviceId, query)) {
+      if (_isCurrentExpertRequest(generation, cityId, serviceId, query, sort)) {
         setState(() => _error = error);
       }
     } finally {
-      if (_isCurrentExpertRequest(generation, cityId, serviceId, query)) {
+      if (_isCurrentExpertRequest(generation, cityId, serviceId, query, sort)) {
         setState(() => _loading = false);
       }
     }
@@ -352,6 +384,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final cityId = _cityId;
     final serviceId = _serviceId;
     final query = _query;
+    final sort = _sort;
     final page = _page;
     setState(() {
       _loadingMore = true;
@@ -363,8 +396,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
         cityId: cityId,
         serviceId: serviceId,
         q: query,
+        sort: sort,
       );
-      if (!_isCurrentExpertRequest(generation, cityId, serviceId, query) ||
+      if (!_isCurrentExpertRequest(
+            generation,
+            cityId,
+            serviceId,
+            query,
+            sort,
+          ) ||
           _page != page) {
         return;
       }
@@ -374,12 +414,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
         _hasNext = result.hasNext;
       });
     } catch (error) {
-      if (_isCurrentExpertRequest(generation, cityId, serviceId, query) &&
+      if (_isCurrentExpertRequest(generation, cityId, serviceId, query, sort) &&
           _page == page) {
         setState(() => _error = error);
       }
     } finally {
-      if (_isCurrentExpertRequest(generation, cityId, serviceId, query) &&
+      if (_isCurrentExpertRequest(generation, cityId, serviceId, query, sort) &&
           _page == page) {
         setState(() => _loadingMore = false);
       }
@@ -399,17 +439,38 @@ class _CatalogScreenState extends State<CatalogScreen> {
     _reloadExperts();
   }
 
+  void _selectService(int? serviceId) {
+    if (serviceId == _serviceId) return;
+    setState(() {
+      _serviceId = serviceId;
+      if (serviceId == null && _sort.requiresService) {
+        _sort = ExpertSort.nameAsc;
+      }
+    });
+    _reloadExperts();
+  }
+
+  String _sortLabel(ExpertSort sort) => switch (sort) {
+    ExpertSort.nameAsc => context.lamsa.sortNameAsc,
+    ExpertSort.nameDesc => context.lamsa.sortNameDesc,
+    ExpertSort.ratingDesc => context.lamsa.sortRatingDesc,
+    ExpertSort.priceAsc => context.lamsa.sortPriceAsc,
+    ExpertSort.priceDesc => context.lamsa.sortPriceDesc,
+  };
+
   bool _isCurrentExpertRequest(
     int generation,
     int? cityId,
     int? serviceId,
     String? query,
+    ExpertSort sort,
   ) =>
       mounted &&
       generation == _expertRequestGeneration &&
       cityId == _cityId &&
       serviceId == _serviceId &&
-      query == _query;
+      query == _query &&
+      sort == _sort;
 }
 
 class _ExpertCard extends StatelessWidget {

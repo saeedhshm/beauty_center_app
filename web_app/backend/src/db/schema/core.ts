@@ -14,8 +14,22 @@ export const cities = pgTable('cities', {
   name: text('name').notNull(),
   code: text('code'),
   isActive: boolean('is_active').notNull().default(false),
+  boundary: jsonb('boundary'),
+  boundaryBounds: jsonb('boundary_bounds'),
+  boundarySource: text('boundary_source'),
+  boundarySourceRef: text('boundary_source_ref'),
+  boundaryUpdatedAt: timestamp('boundary_updated_at', { withTimezone: true }),
   ...timestamps(),
-}, (t) => [uniqueIndex('cities_name_unique').on(t.name), uniqueIndex('cities_code_unique').on(t.code)]);
+}, (t) => [
+  uniqueIndex('cities_name_unique').on(t.name),
+  uniqueIndex('cities_code_unique').on(t.code),
+  check('cities_boundary_complete', sql`(
+    ${t.boundary} is not null and ${t.boundaryBounds} is not null and ${t.boundarySource} is not null and ${t.boundarySourceRef} is not null and ${t.boundaryUpdatedAt} is not null
+  ) or (
+    ${t.boundary} is null and ${t.boundaryBounds} is null and ${t.boundarySource} is null and ${t.boundarySourceRef} is null and ${t.boundaryUpdatedAt} is null
+  )`),
+  check('cities_active_boundary', sql`not ${t.isActive} or ${t.boundary} is not null`),
+]);
 
 export const services = pgTable('services', {
   id: smallint('id').primaryKey().generatedAlwaysAsIdentity(),

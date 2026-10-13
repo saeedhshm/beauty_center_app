@@ -78,7 +78,7 @@ async function harness() {
   async function settledBooking(target?: { expert: { accessToken: string; user: { id: string } }; service: { id: number } }, startsAt?: string) {
     const { expert, service } = target ?? await readyExpert();
     const customer = await register('customer');
-    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', isDefault: true })).body.data;
+    const address = (await request(app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700', isDefault: true })).body.data;
     const from = tomorrowCairo();
     const start = startsAt ?? (await request(app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots[0].startsAt;
     const booking = (await request(app).post('/api/v1/bookings').auth(customer.accessToken, { type: 'bearer' }).send({ expertId: expert.user.id, serviceId: service.id, addressId: address.id, startsAt: start })).body.data;
@@ -133,7 +133,7 @@ it('rejects ineligible bookings, wrong experts and wrong roles', async () => {
   const from = tomorrowCairo();
   const slots = (await request(h.app).get(`/api/v1/experts/${expert.user.id}/slots`).query({ serviceId: service.id, from, to: from })).body.data.days[0].slots;
   const customer2 = await h.register('customer');
-  const address2 = (await request(h.app).post('/api/v1/addresses').auth(customer2.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address' })).body.data;
+  const address2 = (await request(h.app).post('/api/v1/addresses').auth(customer2.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'home', addressText: 'Cairo synthetic address', lat: '30.044400', lng: '31.235700' })).body.data;
   const pending = (await request(h.app).post('/api/v1/bookings').auth(customer2.accessToken, { type: 'bearer' }).send({ expertId: expert.user.id, serviceId: service.id, addressId: address2.id, startsAt: slots[5].startsAt })).body.data;
   await request(h.app).post(`/api/v1/bookings/${pending.id}/accept`).auth(expert.accessToken, { type: 'bearer' });
   expect((await request(h.app).post('/api/v1/admin/payouts').auth(h.admin.accessToken, { type: 'bearer' }).send({ expertId: expert.user.id, bookingIds: [pending.id] })).status).toBe(409);

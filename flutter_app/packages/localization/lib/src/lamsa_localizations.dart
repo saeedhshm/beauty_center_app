@@ -150,6 +150,15 @@ class LamsaLocalizations {
   String get search => isArabic ? 'بحث' : 'Search';
   String get service => isArabic ? 'الخدمة' : 'Service';
   String get allServices => isArabic ? 'كل الخدمات' : 'All services';
+  String get sortExperts => isArabic ? 'ترتيب الخبيرات' : 'Sort experts';
+  String get sortNameAsc => isArabic ? 'الاسم: أ إلى ي' : 'Name: A to Z';
+  String get sortNameDesc => isArabic ? 'الاسم: ي إلى أ' : 'Name: Z to A';
+  String get sortRatingDesc =>
+      isArabic ? 'التقييم: الأعلى أولًا' : 'Rating: highest first';
+  String get sortPriceAsc =>
+      isArabic ? 'السعر: الأقل أولًا' : 'Price: lowest first';
+  String get sortPriceDesc =>
+      isArabic ? 'السعر: الأعلى أولًا' : 'Price: highest first';
   String get loadingExpert =>
       isArabic ? 'جاري تحميل ملف الخبيرة' : 'Loading expert profile';
   String get loadingExpertMessage => isArabic
@@ -195,6 +204,25 @@ class LamsaLocalizations {
   String get addressLabel => isArabic ? 'اسم العنوان' : 'Address label';
   String get addressText =>
       isArabic ? 'وصف العنوان بالتفصيل' : 'Full address description';
+  String get addressLocation => isArabic ? 'موقع العنوان' : 'Address location';
+  String get locationRequiredMessage => isArabic
+      ? 'حددي موقع العنوان على الخريطة.'
+      : 'Select the address location on the map.';
+  String get locationRequiredValidation =>
+      isArabic ? 'يلزم تحديد موقع العنوان.' : 'Address location is required.';
+  String get chooseLocation =>
+      isArabic ? 'اختيار الموقع على الخريطة' : 'Choose on map';
+  String get locationUnavailableTitle =>
+      isArabic ? 'الخريطة غير متاحة' : 'Map unavailable';
+  String get locationUnavailableMessage => isArabic
+      ? 'لم تُهيأ حدود هذه المدينة بعد. اختاري مدينة أخرى أو حاولي لاحقًا.'
+      : 'This city boundary is not configured yet. Choose another city or try again later.';
+  String get locationPickerInstructions => isArabic
+      ? 'حرّكي الخريطة أو اضغطي لاختيار موقع العنوان داخل حدود المدينة.'
+      : 'Move the map or tap to select the address location within the city bounds.';
+  String get confirmLocation => isArabic ? 'تأكيد الموقع' : 'Confirm location';
+  String get openStreetMapContributors =>
+      isArabic ? '© مساهمو OpenStreetMap' : '© OpenStreetMap contributors';
   String get optionalCoordinatesTitle =>
       isArabic ? 'الإحداثيات (اختيارية)' : 'Coordinates (optional)';
   String get optionalCoordinatesMessage => isArabic

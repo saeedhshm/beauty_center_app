@@ -21,6 +21,12 @@ afterAll(async () => { await database.close(); await pool.end(); });
 const password = 'Synthetic-catalog-password!';
 const hashed = hashPassword(password);
 const phone = () => `+2012${randomInt(0, 100000000).toString().padStart(8, '0')}`;
+const cairoPoint = { lat: '30.044400', lng: '31.235700' };
+const testBoundary = {
+  geometry: { type: 'Polygon', coordinates: [[[30, 29], [32, 29], [32, 31], [30, 31], [30, 29]]] },
+  bounds: { south: '29', west: '30', north: '31', east: '32' },
+  sourceRef: 'relation/test-fixture',
+};
 
 async function harness() {
   const auth = new AuthService(new AuthRepository(database.db), new DemoOtpSender(), parseAuthConfig({ AUTH_SECRET: `test-only-${randomUUID()}-${randomUUID()}` }));
@@ -51,7 +57,8 @@ async function harness() {
 it('exposes Cairo/EGP defaults and completes the admin approval → expert price → public discovery → customer address journey', async () => {
   const h = await harness();
   const config = await request(h.app).get('/api/v1/configuration');
-  expect(config.body.data).toMatchObject({ currency: 'EGP', timeZone: 'Africa/Cairo', paymentMode: 'demo', daytimeOnly: true, launchCity: { code: 'EG-CAI', name: 'القاهرة' }, bookingPolicy: { acceptanceTimeoutMinutes: 10, paymentTimeoutMinutes: 10, commissionRate: '20.0000' } });
+  expect(config.body.data).toMatchObject({ currency: 'EGP', timeZone: 'Africa/Cairo', paymentMode: 'demo', daytimeOnly: true, launchCity: { code: 'EG-CAI', name: 'القاهرة', location: { status: 'ready', bounds: { south: '29.7483062' } } }, map: { type: 'raster', tileUrlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', minZoom: 0, maxZoom: 19 }, bookingPolicy: { acceptanceTimeoutMinutes: 10, paymentTimeoutMinutes: 10, commissionRate: '20.0000' } });
+  expect(config.text).not.toContain('coordinates');
   const expert = await h.register('expert');
   const service = await h.service();
   const edited = await request(h.app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, bio: 'ملف اختباري' });
@@ -73,7 +80,7 @@ it('exposes Cairo/EGP defaults and completes the admin approval → expert price
   expect(detail.text).not.toContain('private-only');
   expect(detail.text).not.toContain(expert.user.phone);
   const customer = await h.register('customer');
-  const address = await request(h.app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'عنوان اختباري', addressText: 'القاهرة — بيانات خيالية', isDefault: true });
+  const address = await request(h.app).post('/api/v1/addresses').auth(customer.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'عنوان اختباري', addressText: 'القاهرة — بيانات خيالية', ...cairoPoint, isDefault: true });
   expect(address.status).toBe(201);
   expect(address.body.data.isDefault).toBe(true);
 });
@@ -119,7 +126,7 @@ it('enforces address ownership, active-city coverage, coordinate validation and 
   const owner = await h.register('customer');
   const other = await h.register('customer');
   const expert = await h.register('expert');
-  const body = { cityId: h.cityId, label: 'Test', addressText: 'Synthetic Cairo address', isDefault: true };
+  const body = { cityId: h.cityId, label: 'Test', addressText: 'Synthetic Cairo address', ...cairoPoint, isDefault: true };
   const results = await Promise.all([1, 2].map(() => request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send(body)));
   expect(results.map((r) => r.status)).toEqual([201, 201]);
   const id = results[0]!.body.data.id;
@@ -130,9 +137,19 @@ it('enforces address ownership, active-city coverage, coordinate validation and 
   expect((await request(h.app).delete(`/api/v1/addresses/${id}`).auth(other.accessToken, { type: 'bearer' })).status).toBe(404);
   expect((await request(h.app).get('/api/v1/addresses').auth(expert.accessToken, { type: 'bearer' })).status).toBe(403);
   expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, customerId: other.user.id })).status).toBe(422);
-  expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, lat: '30.0' })).status).toBe(422);
+  expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ cityId: h.cityId, label: 'Missing', addressText: 'Missing coordinates' })).status).toBe(422);
+  const outside = await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, lat: '29.900000', lng: '30.900000' });
+  expect(outside.status).toBe(422);
+  expect(outside.body.error.code).toBe('ADDRESS_OUTSIDE_CITY');
   const otherCity = (await pool.query('insert into cities(name,is_active) values($1,false) returning id', [`Other-${randomUUID()}`])).rows[0].id;
   expect((await request(h.app).post('/api/v1/addresses').auth(owner.accessToken, { type: 'bearer' }).send({ ...body, cityId: otherCity })).status).toBe(409);
+  const historical = (await pool.query("insert into customer_addresses(customer_id,city_id,label,address_text) values($1,$2,'Legacy','Historical address') returning id", [owner.user.id, h.cityId])).rows[0].id;
+  const relabeled = await request(h.app).patch(`/api/v1/addresses/${historical}`).auth(owner.accessToken, { type: 'bearer' }).send({ label: 'Historical label' });
+  expect(relabeled.status).toBe(200);
+  expect(relabeled.body.data).toMatchObject({ label: 'Historical label', lat: null, lng: null });
+  expect((await request(h.app).patch(`/api/v1/addresses/${historical}`).auth(owner.accessToken, { type: 'bearer' }).send({ cityId: h.cityId })).status).toBe(422);
+  await expect(pool.query('insert into cities(name,is_active) values($1,true)', [`Unconfigured-${randomUUID()}`]))
+    .rejects.toMatchObject({ code: '23514', constraint: 'cities_active_boundary' });
   expect((await request(h.app).delete(`/api/v1/addresses/${id}`).auth(owner.accessToken, { type: 'bearer' })).status).toBe(204);
 });
 
@@ -154,10 +171,19 @@ it('creates, activates and safely deletes managed cities with atomic audit', asy
   expect((await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' }).send({ name: `مدينة ${suffix}`, code: input.code })).status).toBe(409);
   expect((await request(h.app).get('/api/v1/cities')).body.data).not.toContainEqual(expect.objectContaining({ id: created.body.data.id }));
 
+  const missingBoundary = await request(h.app).patch(`/api/v1/admin/cities/${created.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
+  expect(missingBoundary.status).toBe(409);
+  expect(missingBoundary.body.error.code).toBe('CITY_BOUNDARY_REQUIRED');
+  const boundary = await request(h.app).put(`/api/v1/admin/cities/${created.body.data.id}/boundary`).auth(h.admin.accessToken, { type: 'bearer' }).send(testBoundary);
+  expect(boundary.status).toBe(200);
+  expect(boundary.body.data.location).toEqual({ status: 'ready', bounds: testBoundary.bounds });
+  expect(boundary.text).not.toContain('coordinates');
   const activated = await request(h.app).patch(`/api/v1/admin/cities/${created.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
   expect(activated.status).toBe(200);
+  expect((await request(h.app).put(`/api/v1/admin/cities/${created.body.data.id}/boundary`).auth(h.admin.accessToken, { type: 'bearer' }).send(testBoundary)).status).toBe(409);
   expect((await request(h.app).get('/api/v1/cities')).body.data).toContainEqual(expect.objectContaining({ id: created.body.data.id, isActive: true }));
   expect((await pool.query("select action from admin_audit_logs where actor_id=$1 and resource_id=$2 and action in ('city.created','city.updated')", [h.adminId, String(created.body.data.id)])).rows.map((row) => row.action).sort()).toEqual(['city.created', 'city.updated']);
+  expect((await pool.query("select action from admin_audit_logs where actor_id=$1 and resource_id=$2 and action='city.boundary_updated'", [h.adminId, String(created.body.data.id)])).rowCount).toBe(1);
 
   const expert = await h.register('expert');
   await request(h.app).patch('/api/v1/experts/me').auth(expert.accessToken, { type: 'bearer' }).send({ cityId: created.body.data.id });
@@ -173,6 +199,7 @@ it('creates, activates and safely deletes managed cities with atomic audit', asy
   const disposable = await request(h.app).post('/api/v1/admin/cities').auth(h.admin.accessToken, { type: 'bearer' })
     .send({ name: `الجيزة ${suffix}`, code: `EG-G${suffix}` });
   expect(disposable.status).toBe(201);
+  await request(h.app).put(`/api/v1/admin/cities/${disposable.body.data.id}/boundary`).auth(h.admin.accessToken, { type: 'bearer' }).send(testBoundary);
   await request(h.app).patch(`/api/v1/admin/cities/${disposable.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
   const activeDelete = await request(h.app).delete(`/api/v1/admin/cities/${disposable.body.data.id}`).auth(h.admin.accessToken, { type: 'bearer' });
   expect(activeDelete.status).toBe(409);
@@ -226,6 +253,30 @@ it('paginates on the server, validates filters, and hides a deactivated managed 
   } finally {
     await request(h.app).patch(`/api/v1/admin/cities/${h.cityId}`).auth(h.admin.accessToken, { type: 'bearer' }).send({ isActive: true });
   }
+});
+
+it('sorts published experts in PostgreSQL before deterministic pagination', async () => {
+  const h = await harness();
+  const service = await h.service();
+  const fixtures = [
+    { id: randomUUID(), name: 'Zara Sort', rating: '5.00', count: 2, price: '200.00' },
+    { id: randomUUID(), name: 'Alpha Sort', rating: '5.00', count: 10, price: '300.00' },
+    { id: randomUUID(), name: 'Mona Sort', rating: '4.00', count: 100, price: '200.00' },
+  ];
+  for (const row of fixtures) {
+    await pool.query('insert into users(id,name,phone,role,city_id,rating_avg,rating_count) values($1,$2,$3,\'expert\',$4,$5,$6)', [row.id, row.name, phone(), h.cityId, row.rating, row.count]);
+    await pool.query("insert into expert_profiles(user_id,approval_status,is_accepting_bookings) values($1,'approved',true)", [row.id]);
+    await pool.query("insert into expert_services(expert_id,service_id,price,currency,is_active) values($1,$2,$3,'EGP',true)", [row.id, service.id, row.price]);
+  }
+  const ids = async (query: Record<string, string | number>) => (await request(h.app).get('/api/v1/experts').query({ serviceId: service.id, ...query })).body.data.items.map((row: { id: string }) => row.id);
+  expect(await ids({ sort: 'name_asc' })).toEqual([fixtures[1]!.id, fixtures[2]!.id, fixtures[0]!.id]);
+  expect(await ids({ sort: 'name_desc' })).toEqual([fixtures[0]!.id, fixtures[2]!.id, fixtures[1]!.id]);
+  expect(await ids({ sort: 'rating_desc' })).toEqual([fixtures[1]!.id, fixtures[0]!.id, fixtures[2]!.id]);
+  expect(await ids({ sort: 'price_asc' })).toEqual([fixtures[2]!.id, fixtures[0]!.id, fixtures[1]!.id]);
+  expect(await ids({ sort: 'price_desc' })).toEqual([fixtures[1]!.id, fixtures[2]!.id, fixtures[0]!.id]);
+  expect(await ids({ sort: 'price_asc', page: 2, limit: 1 })).toEqual([fixtures[0]!.id]);
+  const invalid = await request(h.app).get('/api/v1/experts').query({ sort: 'price_asc' });
+  expect(invalid.status).toBe(422);
 });
 
 it('seeds demo fixtures idempotently without promoting existing accounts or resetting edited policy or profiles', async () => {

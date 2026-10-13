@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express';
 import { authenticatedUser } from '../../middleware/authenticate.js';
 import type { CatalogService } from './catalog.service.js';
-import { addressPatchSchema, addressSchema, adminExpertsQuery, cityPatchSchema, citySchema, currencyPatchSchema, expertPatchSchema, expertPriceSchema, expertsQuery, idSchema, pageSchema, policyPatchSchema, servicePatchSchema, serviceSchema, uuidSchema } from './catalog.validation.js';
+import { addressPatchSchema, addressSchema, adminExpertsQuery, cityBoundarySchema, cityPatchSchema, citySchema, currencyPatchSchema, expertPatchSchema, expertPriceSchema, expertsQuery, idSchema, pageSchema, policyPatchSchema, servicePatchSchema, serviceSchema, uuidSchema } from './catalog.validation.js';
 
 export function catalogControllers(service: CatalogService) {
   return {
@@ -24,6 +24,7 @@ export function catalogControllers(service: CatalogService) {
     adminCities: async (_req, res) => { res.json({ data: await service.listCities(true), requestId: res.locals.requestId }); },
     addCity: async (req, res) => { res.status(201).json({ data: await service.createCity(authenticatedUser(res), citySchema.parse(req.body)), requestId: res.locals.requestId }); },
     editCity: async (req, res) => { res.json({ data: await service.updateCity(authenticatedUser(res), idSchema.parse(req.params.id), cityPatchSchema.parse(req.body).isActive), requestId: res.locals.requestId }); },
+    replaceCityBoundary: async (req, res) => { res.json({ data: await service.replaceCityBoundary(authenticatedUser(res), idSchema.parse(req.params.id), cityBoundarySchema.parse(req.body)), requestId: res.locals.requestId }); },
     deleteCity: async (req, res) => { await service.deleteCity(authenticatedUser(res), idSchema.parse(req.params.id)); res.status(204).end(); },
     adminServices: async (req, res) => { res.json({ data: await service.listServices(pageSchema.strict().parse(req.query), authenticatedUser(res)), requestId: res.locals.requestId }); },
     addService: async (req, res) => { res.status(201).json({ data: await service.createService(authenticatedUser(res), serviceSchema.parse(req.body)), requestId: res.locals.requestId }); },

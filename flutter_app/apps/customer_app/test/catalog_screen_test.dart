@@ -20,7 +20,9 @@ void main() {
     pending.complete(expertPage([expert('e1', 'Expert one')]));
     await tester.pumpAndSettle();
     expect(find.text('Expert one'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Sort experts')), findsWidgets);
     expect(gateway.expertRequests.single.cityId, 1);
+    expect(gateway.expertRequests.single.sort, ExpertSort.nameAsc);
   });
 
   testWidgets('catalog renders empty response', (tester) async {
@@ -70,11 +72,74 @@ void main() {
     await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('catalog-load-more')));
+    await selectSort(tester, 'Rating: highest first');
+
+    await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
     await tester.pumpAndSettle();
     expect(find.text('First expert'), findsOneWidget);
     expect(find.text('Second expert'), findsOneWidget);
-    expect(gateway.expertRequests.map((request) => request.page), [1, 2]);
+    expect(gateway.expertRequests.map((request) => request.page), [1, 1, 2]);
+    expect(gateway.expertRequests.last.sort, ExpertSort.ratingDesc);
+  });
+
+  testWidgets('price sort requires a service and resets when it is removed', (
+    tester,
+  ) async {
+    final gateway = FakeCatalogGateway(
+      onExperts: (_) async => expertPage([expert('e1', 'Expert one')]),
+    );
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('catalog-sort')));
+    await tester.pumpAndSettle();
+    expect(find.text('Price: lowest first'), findsNothing);
+    await tester.tapAt(Offset.zero);
+    await tester.pumpAndSettle();
+
+    await tapVisible(tester, find.byKey(const Key('catalog-service-card-10')));
+    await tester.pumpAndSettle();
+    await selectSort(tester, 'Price: lowest first');
+    expect(gateway.expertRequests.last.serviceId, 10);
+    expect(gateway.expertRequests.last.sort, ExpertSort.priceAsc);
+
+    await tester.tap(find.byKey(const Key('catalog-service')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All services').last);
+    await tester.pumpAndSettle();
+
+    expect(gateway.expertRequests.last.serviceId, isNull);
+    expect(gateway.expertRequests.last.sort, ExpertSort.nameAsc);
+    expect(find.text('Name: A to Z'), findsOneWidget);
+  });
+
+  testWidgets('catalog ignores an old page after sort change', (tester) async {
+    final oldNextPage = Completer<CatalogPage<PublicExpert>>();
+    final gateway = FakeCatalogGateway(
+      onExperts: (request) {
+        if (request.page == 2) return oldNextPage.future;
+        if (request.sort == ExpertSort.nameDesc) {
+          return Future.value(expertPage([expert('sorted', 'Sorted expert')]));
+        }
+        return Future.value(
+          expertPage([expert('initial', 'Initial expert')], hasNext: true),
+        );
+      },
+    );
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpAndSettle();
+
+    await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
+    await tester.pump();
+    await selectSort(tester, 'Name: Z to A');
+    oldNextPage.complete(
+      expertPage([expert('old', 'Old sorted page')], page: 2),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sorted expert'), findsOneWidget);
+    expect(find.text('Old sorted page'), findsNothing);
+    expect(gateway.expertRequests.last.sort, ExpertSort.nameDesc);
   });
 
   testWidgets('catalog ignores an old next page after filter change', (
@@ -97,9 +162,9 @@ void main() {
     await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('catalog-load-more')));
+    await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
     await tester.pump();
-    await tester.tap(find.byKey(const Key('catalog-service-card-10')));
+    await tapVisible(tester, find.byKey(const Key('catalog-service-card-10')));
     await tester.pump();
 
     oldNextPage.complete(
@@ -119,6 +184,19 @@ Widget testApp(Widget child) => MaterialApp(
   theme: LamsaTheme.light(),
   home: child,
 );
+
+Future<void> selectSort(WidgetTester tester, String label) async {
+  await tapVisible(tester, find.byKey(const Key('catalog-sort')));
+  await tester.pump(const Duration(seconds: 1));
+  await tester.tap(find.text(label).last);
+  await tester.pump(const Duration(seconds: 1));
+}
+
+Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pump();
+  await tester.tap(finder);
+}
 
 PublicExpert expert(String id, String name) => PublicExpert(
   id: id,
@@ -140,11 +218,13 @@ class ExpertRequest {
   const ExpertRequest({
     required this.page,
     required this.cityId,
+    required this.sort,
     this.serviceId,
     this.query,
   });
   final int page;
   final int? cityId;
+  final ExpertSort sort;
   final int? serviceId;
   final String? query;
 }
@@ -155,6 +235,10 @@ class FakeCatalogGateway implements CatalogGateway {
   final Future<CatalogPage<PublicExpert>> Function(ExpertRequest request)
   onExperts;
   final expertRequests = <ExpertRequest>[];
+
+  @override
+  Future<PublicMapConfiguration> mapConfiguration() =>
+      throw UnimplementedError();
 
   @override
   Future<List<CatalogCity>> cities() async => const [
@@ -187,10 +271,12 @@ class FakeCatalogGateway implements CatalogGateway {
     int? cityId,
     int? serviceId,
     String? q,
+    ExpertSort sort = ExpertSort.nameAsc,
   }) {
     final request = ExpertRequest(
       page: page,
       cityId: cityId,
+      sort: sort,
       serviceId: serviceId,
       query: q,
     );

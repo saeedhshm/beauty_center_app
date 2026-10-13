@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Lamsa Catalog and Administration
-  version: 0.7.0
+  version: 0.8.0
   description: >-
     Managed cities share the Africa/Cairo business time zone. The current market currency
     is EGP or SAR; money and percentage rates are decimal strings. Payment mode announces the approved demo
@@ -63,6 +63,10 @@ paths:
         - { name: cityId, in: query, schema: { type: integer, minimum: 1, maximum: 32767 } }
         - { name: serviceId, in: query, schema: { type: integer, minimum: 1, maximum: 32767 } }
         - { name: q, in: query, schema: { type: string, maxLength: 100 } }
+        - name: sort
+          in: query
+          schema: { type: string, enum: [name_asc, name_desc, rating_desc, price_asc, price_desc], default: name_asc }
+          description: price_asc and price_desc require serviceId; all sorting is applied before pagination.
       responses:
         '200':
           $ref: '#/components/responses/Page'
@@ -178,7 +182,7 @@ paths:
             schema:
               allOf:
                 - $ref: '#/components/schemas/AddressInput'
-                - required: [label, addressText, cityId]
+                - required: [label, addressText, cityId, lat, lng]
       responses:
         '201':
           $ref: '#/components/responses/Address'
@@ -388,6 +392,8 @@ paths:
                 properties:
                   requestId: { type: string, format: uuid }
                   data: { $ref: '#/components/schemas/City' }
+        '409':
+          description: CITY_BOUNDARY_REQUIRED when activation is requested before a boundary is configured
         default:
           $ref: '#/components/responses/Error'
     delete:
@@ -401,6 +407,34 @@ paths:
           description: City deleted and audited atomically
         '409':
           description: LAUNCH_CITY_PROTECTED, CITY_MUST_BE_INACTIVE or CITY_IN_USE
+        default:
+          $ref: '#/components/responses/Error'
+  /api/v1/admin/cities/{id}/boundary:
+    put:
+      operationId: replaceManagedCityBoundary
+      security: [{ AdminBearer: [] }]
+      description: Replaces a boundary only while the city is inactive. Data is supplied through an offline reviewed OpenStreetMap workflow; this request makes no external geocoding call. The source is fixed to openstreetmap and the write and audit record are atomic.
+      parameters:
+        - $ref: '#/components/parameters/SmallId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CityBoundaryInput' }
+      responses:
+        '200':
+          description: Boundary replaced; the public DTO exposes only its status and bounds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId: { type: string, format: uuid }
+                  data: { $ref: '#/components/schemas/City' }
+        '409':
+          description: CITY_MUST_BE_INACTIVE
+        '422':
+          description: Invalid, unclosed, too complex or out-of-bounds Polygon/MultiPolygon
         default:
           $ref: '#/components/responses/Error'
   /api/v1/admin/services:
@@ -1275,12 +1309,25 @@ components:
   schemas:
     City:
       type: object
-      required: [id, name, code, isActive]
+      required: [id, name, code, isActive, location]
       properties:
         id: { type: integer }
         name: { type: string }
         code: { type: string, pattern: '^[A-Z]{2}-[A-Z0-9]{2,12}$' }
         isActive: { type: boolean }
+        location:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [status, bounds]
+              properties:
+                status: { type: string, const: ready }
+                bounds: { $ref: '#/components/schemas/CityBounds' }
+            - type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: { type: string, const: not_configured }
     CityInput:
       type: object
       additionalProperties: false
@@ -1288,6 +1335,61 @@ components:
       properties:
         name: { type: string, minLength: 2, maxLength: 100, description: Arabic display name }
         code: { type: string, pattern: '^[A-Z]{2}-[A-Z0-9]{2,12}$', description: Stable unique code such as EG-ALX }
+    CityBounds:
+      type: object
+      additionalProperties: false
+      required: [south, west, north, east]
+      properties:
+        south: { type: string, description: Decimal latitude }
+        west: { type: string, description: Decimal longitude }
+        north: { type: string, description: Decimal latitude }
+        east: { type: string, description: Decimal longitude }
+    CityBoundaryInput:
+      type: object
+      additionalProperties: false
+      required: [geometry, bounds, sourceRef]
+      properties:
+        geometry:
+          oneOf:
+            - $ref: '#/components/schemas/GeoJsonPolygon'
+            - $ref: '#/components/schemas/GeoJsonMultiPolygon'
+        bounds: { $ref: '#/components/schemas/CityBounds' }
+        sourceRef: { type: string, minLength: 1, maxLength: 200, example: relation/4103336 }
+    GeoJsonPosition:
+      type: array
+      prefixItems:
+        - { type: number, minimum: -180, maximum: 180 }
+        - { type: number, minimum: -90, maximum: 90 }
+      minItems: 2
+      maxItems: 2
+    GeoJsonRing:
+      type: array
+      minItems: 4
+      items: { $ref: '#/components/schemas/GeoJsonPosition' }
+      description: First and last positions must be identical. At most 10000 positions are accepted across the geometry.
+    GeoJsonPolygon:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: Polygon }
+        coordinates:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/GeoJsonRing' }
+    GeoJsonMultiPolygon:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      properties:
+        type: { type: string, const: MultiPolygon }
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 1
+            items: { $ref: '#/components/schemas/GeoJsonRing' }
     AuditLog:
       type: object
       required: [id, actorId, action, resourceType, resourceId, details, createdAt]
@@ -1347,10 +1449,26 @@ components:
         - required: [acceptanceTimeoutMinutes, paymentTimeoutMinutes, commissionRate]
     Configuration:
       type: object
-      required: [launchCity, cities, currency, timeZone, paymentMode, daytimeOnly, bookingPolicy]
+      required: [launchCity, cities, map, currency, timeZone, paymentMode, daytimeOnly, bookingPolicy]
       properties:
         launchCity: { $ref: '#/components/schemas/City' }
         cities: { type: array, items: { $ref: '#/components/schemas/City' }, description: Active managed cities }
+        map:
+          type: object
+          additionalProperties: false
+          required: [type, tileUrlTemplate, minZoom, maxZoom, attribution, reportIssueUrl]
+          properties:
+            type: { type: string, const: raster }
+            tileUrlTemplate: { type: string, const: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png' }
+            minZoom: { type: integer }
+            maxZoom: { type: integer }
+            attribution:
+              type: object
+              required: [text, url]
+              properties:
+                text: { type: string }
+                url: { type: string, format: uri }
+            reportIssueUrl: { type: string, format: uri }
         currency: { type: string, enum: [EGP, SAR] }
         timeZone: { type: string, const: Africa/Cairo }
         paymentMode: { type: string, const: demo }
@@ -1403,13 +1521,13 @@ components:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: lat/lng must both be supplied or both omitted; use two nulls to remove coordinates
+      description: New addresses require both decimal coordinate strings. PATCH may omit both for label/text/default-only changes, but coordinates cannot be cleared and changing city or coordinates requires an effective non-null pair inside the selected city boundary.
       properties:
         label: { type: string, minLength: 1, maxLength: 100 }
         addressText: { type: string, minLength: 5, maxLength: 1000 }
         cityId: { type: integer, minimum: 1, maximum: 32767 }
-        lat: { type: [string, 'null'], description: Decimal string with up to 6 places in range -90 to 90 }
-        lng: { type: [string, 'null'], description: Decimal string with up to 6 places in range -180 to 180 }
+        lat: { type: string, description: Decimal string with up to 6 places in range -90 to 90 }
+        lng: { type: string, description: Decimal string with up to 6 places in range -180 to 180 }
         isDefault: { type: boolean, description: Defaults false on creation only }
     Address:
       type: object

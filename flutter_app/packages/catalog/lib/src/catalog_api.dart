@@ -2,7 +2,23 @@ import 'package:lamsa_networking/lamsa_networking.dart';
 
 import 'models.dart';
 
+enum ExpertSort {
+  nameAsc('name_asc'),
+  nameDesc('name_desc'),
+  ratingDesc('rating_desc'),
+  priceAsc('price_asc'),
+  priceDesc('price_desc');
+
+  const ExpertSort(this.wireValue);
+
+  final String wireValue;
+
+  bool get requiresService => this == priceAsc || this == priceDesc;
+}
+
 abstract interface class CatalogGateway {
+  Future<PublicMapConfiguration> mapConfiguration();
+
   Future<List<CatalogCity>> cities();
 
   Future<CatalogPage<CatalogService>> services({int page = 1, int limit = 20});
@@ -13,6 +29,7 @@ abstract interface class CatalogGateway {
     int? cityId,
     int? serviceId,
     String? q,
+    ExpertSort sort = ExpertSort.nameAsc,
   });
 
   Future<ExpertDetail> expert(String id);
@@ -38,6 +55,12 @@ class CatalogApi implements CatalogGateway {
   CatalogApi(this._client);
 
   final ApiClient _client;
+
+  @override
+  Future<PublicMapConfiguration> mapConfiguration() async {
+    final data = _data(await _client.get<JsonObject>('/api/v1/configuration'));
+    return PublicMapConfiguration.fromJson(_json(data['map']));
+  }
 
   @override
   Future<List<CatalogCity>> cities() async {
@@ -68,21 +91,32 @@ class CatalogApi implements CatalogGateway {
     int? cityId,
     int? serviceId,
     String? q,
-  }) async => CatalogPage.fromJson(
-    _data(
-      await _client.get<JsonObject>(
-        '/api/v1/experts',
-        query: {
-          'page': page,
-          'limit': limit,
-          'cityId': ?cityId,
-          'serviceId': ?serviceId,
-          'q': ?q,
-        },
+    ExpertSort sort = ExpertSort.nameAsc,
+  }) async {
+    if (sort.requiresService && serviceId == null) {
+      throw ArgumentError.value(
+        sort,
+        'sort',
+        'Price sorting requires serviceId',
+      );
+    }
+    return CatalogPage.fromJson(
+      _data(
+        await _client.get<JsonObject>(
+          '/api/v1/experts',
+          query: {
+            'page': page,
+            'limit': limit,
+            'cityId': ?cityId,
+            'serviceId': ?serviceId,
+            'q': ?q,
+            'sort': sort.wireValue,
+          },
+        ),
       ),
-    ),
-    PublicExpert.fromJson,
-  );
+      PublicExpert.fromJson,
+    );
+  }
 
   @override
   Future<ExpertDetail> expert(String id) async => ExpertDetail.fromJson(

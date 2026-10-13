@@ -92,6 +92,13 @@
       "when": 1791808658876,
       "tag": "0012_managed_market_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791897616713,
+      "tag": "0013_city_boundaries",
+      "breakpoints": true
     }
   ]
 }
