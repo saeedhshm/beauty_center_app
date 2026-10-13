@@ -59,6 +59,9 @@ final catalogApiProvider = Provider<CatalogGateway>(
 final availabilityApiProvider = Provider<AvailabilityGateway>(
   (ref) => AvailabilityApi(ref.watch(authenticatedApiClientProvider)),
 );
+final bookingApiProvider = Provider<BookingGateway>(
+  (ref) => BookingApi(ref.watch(authenticatedApiClientProvider)),
+);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionManagerProvider);
@@ -107,6 +110,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           workspaceApi: ref.read(expertWorkspaceApiProvider),
           catalogApi: ref.read(catalogApiProvider),
           availabilityApi: ref.read(availabilityApiProvider),
+          bookingApi: ref.read(bookingApiProvider),
         ),
       ),
     ],

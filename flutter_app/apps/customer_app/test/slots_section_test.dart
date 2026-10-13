@@ -40,6 +40,8 @@ void main() {
         ExpertDetailScreen(
           gateway: _DetailGateway(),
           availability: slots,
+          addresses: _AddressesGateway(),
+          bookings: _BookingsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -65,6 +67,8 @@ void main() {
         ExpertDetailScreen(
           gateway: _DetailGateway(),
           availability: slots,
+          addresses: _AddressesGateway(),
+          bookings: _BookingsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -117,6 +121,8 @@ void main() {
         ExpertDetailScreen(
           gateway: _DetailGateway(),
           availability: slots,
+          addresses: _AddressesGateway(),
+          bookings: _BookingsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -164,6 +170,59 @@ ExpertDetail _detailData() => const ExpertDetail(
     ),
   ],
 );
+
+class _AddressesGateway implements AddressGateway {
+  @override
+  Future<CatalogPage<CustomerAddress>> list({int page = 1, int limit = 20}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<CustomerAddress> create({
+    required String label,
+    required String addressText,
+    required int cityId,
+    required String lat,
+    required String lng,
+    bool isDefault = false,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<CustomerAddress> update(String id, AddressDraft input) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> delete(String id) => throw UnimplementedError();
+}
+
+class _BookingsGateway implements BookingGateway {
+  @override
+  Future<Booking> createBooking({
+    required String expertId,
+    required int serviceId,
+    required String addressId,
+    required String startsAt,
+    String? notes,
+    required String idempotencyKey,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<CatalogPage<Booking>> bookings({String? status, int page = 1}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Booking> booking(String id) => throw UnimplementedError();
+
+  @override
+  Future<Booking> accept(String id) => throw UnimplementedError();
+
+  @override
+  Future<Booking> reject(String id, {String? reason}) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Booking> cancel(String id, {String? reason}) =>
+      throw UnimplementedError();
+}
 
 class _DetailGateway implements CatalogGateway {
   @override

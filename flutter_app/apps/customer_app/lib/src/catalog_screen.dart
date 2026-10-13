@@ -4,14 +4,24 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
+import 'package:uuid/uuid.dart';
 
+import 'bookings_screen.dart';
 import 'cairo_slot_time.dart';
 
 class CatalogScreen extends StatefulWidget {
-  const CatalogScreen({required this.gateway, required this.availability, super.key});
+  const CatalogScreen({
+    required this.gateway,
+    required this.availability,
+    required this.addresses,
+    required this.bookings,
+    super.key,
+  });
 
   final CatalogGateway gateway;
   final AvailabilityGateway availability;
+  final AddressGateway addresses;
+  final BookingGateway bookings;
 
   @override
   State<CatalogScreen> createState() => _CatalogScreenState();
@@ -102,6 +112,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       builder: (_) => ExpertDetailScreen(
                         gateway: widget.gateway,
                         availability: widget.availability,
+                        addresses: widget.addresses,
+                        bookings: widget.bookings,
                         expertId: _experts[index].id,
                       ),
                     ),
@@ -515,12 +527,16 @@ class ExpertDetailScreen extends StatefulWidget {
   const ExpertDetailScreen({
     required this.gateway,
     required this.availability,
+    required this.addresses,
+    required this.bookings,
     required this.expertId,
     super.key,
   });
 
   final CatalogGateway gateway;
   final AvailabilityGateway availability;
+  final AddressGateway addresses;
+  final BookingGateway bookings;
   final String expertId;
 
   @override
@@ -661,6 +677,7 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
                     _loadSlots();
                   },
                   onRetry: _loadSlots,
+                  onSlotPicked: _reviewSlot,
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -811,6 +828,43 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
     }
   }
 
+  Future<void> _reviewSlot(ExpertSlot slot) async {
+    final expert = _expert;
+    final offering = _slotServices.cast<ExpertOffering?>().firstWhere(
+      (item) => item?.serviceId == _slotServiceId,
+      orElse: () => null,
+    );
+    if (expert == null || offering == null || !mounted) return;
+    final created = await showDialog<Booking>(
+      context: context,
+      builder: (dialogContext) => _BookingReviewDialog(
+        expertName: expert.name,
+        expertId: expert.id,
+        offering: offering,
+        slot: slot,
+        addresses: widget.addresses,
+        bookings: widget.bookings,
+      ),
+    );
+    if (created != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.lamsa.bookingCreated)),
+      );
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BookingDetailScreen(
+            bookings: widget.bookings,
+            bookingId: created.id,
+          ),
+        ),
+      );
+      if (mounted) _loadSlots();
+    } else if (mounted) {
+      // The slot may have been taken meanwhile; refresh from the server.
+      _loadSlots();
+    }
+  }
+
   Future<void> _loadMoreReviews() async {
     setState(() {
       _loadingReviews = true;      _reviewError = null;
@@ -930,7 +984,188 @@ class _InlineError extends StatelessWidget {
   }
 }
 
-/// Server-provided appointment slots for one expert and service (A4).
+/// Review-then-create dialog (A5). Amounts shown come from the server
+/// offering; the authoritative snapshot returns from the create call.
+/// One idempotency key per dialog session guards timeout retries, and the
+/// confirm button locks while sending against duplicate taps.
+class _BookingReviewDialog extends StatefulWidget {
+  const _BookingReviewDialog({
+    required this.expertName,
+    required this.expertId,
+    required this.offering,
+    required this.slot,
+    required this.addresses,
+    required this.bookings,
+  });
+
+  final String expertName;
+  final String expertId;
+  final ExpertOffering offering;
+  final ExpertSlot slot;
+  final AddressGateway addresses;
+  final BookingGateway bookings;
+
+  @override
+  State<_BookingReviewDialog> createState() => _BookingReviewDialogState();
+}
+
+class _BookingReviewDialogState extends State<_BookingReviewDialog> {
+  List<CustomerAddress> _addresses = const [];
+  String? _addressId;
+  String _notes = '';
+  bool _loadingAddresses = true;
+  bool _sending = false;
+  String? _error;
+  late final String _idempotencyKey = const Uuid().v4();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAddresses();
+  }
+
+  Future<void> _loadAddresses() async {
+    try {
+      final page = await widget.addresses.list(limit: 50);
+      if (!mounted) return;
+      setState(() {
+        _addresses = page.items;
+        _addressId ??= page.items
+            .cast<CustomerAddress?>()
+            .firstWhere(
+              (item) => item?.isDefault ?? false,
+              orElse: () => page.items.isEmpty ? null : page.items.first,
+            )
+            ?.id;
+        _loadingAddresses = false;
+      });
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _error = error is ApiFailure ? error.message : null;
+          _loadingAddresses = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirm() async {
+    if (_sending || _addressId == null) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    try {
+      final booking = await widget.bookings.createBooking(
+        expertId: widget.expertId,
+        serviceId: widget.offering.serviceId,
+        addressId: _addressId!,
+        startsAt: widget.slot.startsAt,
+        notes: _notes.isEmpty ? null : _notes,
+        idempotencyKey: _idempotencyKey,
+      );
+      if (mounted) Navigator.of(context).pop(booking);
+    } on ApiFailure catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _error = failure.kind == ApiFailureKind.conflict
+            ? context.lamsa.slotLost
+            : failure.message;
+      });
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _error = context.lamsa.unexpectedError;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(context.lamsa.reviewBooking),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            '${widget.expertName} · ${widget.offering.name}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${cairoDateOf(DateTime.parse(widget.slot.startsAt))} · ${cairoClockOf(widget.slot.startsAt)} – ${cairoClockOf(widget.slot.endsAt)}',
+            textDirection: TextDirection.ltr,
+            textAlign: TextAlign.right,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${widget.offering.price} ${widget.offering.currency} · ${context.lamsa.serviceDuration(widget.offering.durationMin)}',
+          ),
+          const SizedBox(height: 4),
+          Text(
+            context.lamsa.bookingExpiryNote,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          if (_loadingAddresses)
+            const Center(child: CircularProgressIndicator())
+          else if (_addresses.isEmpty)
+            Text(context.lamsa.noAddressesHint)
+          else
+            DropdownButtonFormField<String>(
+              key: const ValueKey('booking-address'),
+              initialValue: _addressId,
+              decoration: InputDecoration(
+                labelText: context.lamsa.chooseAddress,
+              ),
+              items: [
+                for (final address in _addresses)
+                  DropdownMenuItem(
+                    value: address.id,
+                    child: Text('${address.label}: ${address.addressText}'),
+                  ),
+              ],
+              onChanged: (value) => setState(() => _addressId = value),
+            ),
+          const SizedBox(height: 12),
+          TextField(
+            key: const ValueKey('booking-notes'),
+            decoration: InputDecoration(
+              labelText: context.lamsa.notesOptional,
+            ),
+            maxLength: 1000,
+            maxLines: 2,
+            onChanged: (value) => _notes = value,
+          ),
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _error!,
+              style: const TextStyle(color: LamsaColors.danger),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _sending ? null : () => Navigator.of(context).pop(),
+        child: Text(context.lamsa.cancel),
+      ),
+      FilledButton(
+        key: const ValueKey('booking-confirm'),
+        onPressed: _sending || _addressId == null ? null : _confirm,
+        child: Text(
+          _sending ? context.lamsa.sending : context.lamsa.confirmBooking,
+        ),
+      ),
+    ],
+  );
+}
 ///
 /// Day and service changes refetch from the backend; nothing is computed
 /// locally and no booking or hold is created here.
@@ -945,6 +1180,7 @@ class _SlotsSection extends StatelessWidget {
     required this.onServiceChanged,
     required this.onDateChanged,
     required this.onRetry,
+    required this.onSlotPicked,
   });
 
   final List<ExpertOffering> services;
@@ -956,6 +1192,7 @@ class _SlotsSection extends StatelessWidget {
   final ValueChanged<int?> onServiceChanged;
   final ValueChanged<String> onDateChanged;
   final VoidCallback onRetry;
+  final ValueChanged<ExpertSlot> onSlotPicked;
 
   @override
   Widget build(BuildContext context) {
@@ -1047,12 +1284,13 @@ class _SlotsSection extends StatelessWidget {
             runSpacing: 8,
             children: [
               for (final slot in slots)
-                Chip(
+                ActionChip(
                   key: ValueKey('slot-${slot.startsAt}'),
                   label: Text(
                     '${cairoClockOf(slot.startsAt)} – ${cairoClockOf(slot.endsAt)}',
                     textDirection: TextDirection.ltr,
                   ),
+                  onPressed: () => onSlotPicked(slot),
                 ),
             ],
           ),

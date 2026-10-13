@@ -67,6 +67,7 @@ class ApiClient {
     Object? data,
     CancelToken? cancelToken,
     bool authenticated = false,
+    Map<String, String>? headers,
   }) {
     return _request(
       method: 'POST',
@@ -74,6 +75,7 @@ class ApiClient {
       data: data,
       cancelToken: cancelToken,
       authenticated: authenticated,
+      headers: headers,
     );
   }
 
@@ -166,14 +168,16 @@ class ApiClient {
     bool canRetry = true,
     bool retried = false,
     ResponseType? responseType,
+    Map<String, String>? headers,
   }) async {
     final authenticator = _authenticator;
     final token = authenticated && authenticator != null
         ? await authenticator.accessToken()
         : null;
-    final headers = token == null
-        ? null
-        : <String, Object?>{'Authorization': 'Bearer $token'};
+    final mergedHeaders = <String, Object?>{
+      if (token != null) 'Authorization': 'Bearer $token',
+      ...?headers,
+    };
     try {
       final response = await _dio.request<T>(
         path,
@@ -182,7 +186,7 @@ class ApiClient {
         cancelToken: cancelToken,
         options: Options(
           method: method,
-          headers: headers,
+          headers: mergedHeaders,
           responseType: responseType,
         ),
       );

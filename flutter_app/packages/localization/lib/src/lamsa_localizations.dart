@@ -362,6 +362,7 @@ class LamsaLocalizations {
       ? 'جارٍ تحميل الجدول والاستثناءات…'
       : 'Loading schedule and exceptions…';
   String get saving => isArabic ? 'جارٍ الحفظ…' : 'Saving…';
+  String get sending => isArabic ? 'جارٍ الإرسال…' : 'Sending…';
   String get dayClosed => isArabic ? 'مغلق هذا اليوم' : 'Closed this day';
   String get invalidTimeFormat => isArabic
       ? 'استخدمي صيغة HH:MM بصيغة 24 ساعة'
@@ -434,6 +435,94 @@ class LamsaLocalizations {
   String get cairoTimeNote => isArabic
       ? 'كل الأوقات بتوقيت القاهرة.'
       : 'All times are Cairo time.';
+  String get myBookings => isArabic ? 'حجوزاتي' : 'My bookings';
+  String get all => isArabic ? 'الكل' : 'All';
+  String get bookingStatus => isArabic ? 'الحالة' : 'Status';
+  String get loadingBookings => isArabic
+      ? 'جارٍ تحميل الحجوزات…'
+      : 'Loading bookings…';
+  String get loadingBooking =>
+      isArabic ? 'جارٍ تحميل الحجز…' : 'Loading booking…';
+  String get appointmentTime => isArabic ? 'الموعد' : 'Appointment';
+  String get totalAmount => isArabic ? 'الإجمالي' : 'Total';
+  String get price => isArabic ? 'السعر' : 'Price';
+  String get priceDetails => isArabic ? 'تفاصيل المبلغ' : 'Amount details';
+  String get cancellationReason =>
+      isArabic ? 'سبب الإلغاء' : 'Cancellation reason';
+  String get commission => isArabic ? 'العمولة' : 'Commission';
+  String get tax => isArabic ? 'الضريبة' : 'Tax';
+  String get pendingExpiry =>
+      isArabic ? 'ينتهي التعليق في' : 'Pending until';
+  String get bookingDetail => isArabic ? 'تفاصيل الحجز' : 'Booking details';
+  String get noBookings => isArabic ? 'لا توجد حجوزات بعد.' : 'No bookings yet.';
+  String get noBookingsHint => isArabic
+      ? 'اختاري خبيرة وموعدًا من الكتالوج لإنشاء أول حجز.'
+      : 'Pick an expert and a slot from the catalog to create a booking.';
+  String get reviewBooking => isArabic ? 'مراجعة الحجز' : 'Review booking';
+  String get chooseAddress => isArabic ? 'اختاري العنوان' : 'Choose address';
+  String get noAddressesHint => isArabic
+      ? 'أضيفي عنوانًا أولًا من تبويب العناوين.'
+      : 'Add an address first from the addresses tab.';
+  String get notesOptional =>
+      isArabic ? 'ملاحظات (اختياري)' : 'Notes (optional)';
+  String get confirmBooking => isArabic ? 'تأكيد إرسال الطلب' : 'Confirm request';
+  String get bookingCreated =>
+      isArabic ? 'أُرسل طلب الحجز إلى الخبيرة' : 'Booking request sent';
+  String get bookingExpiryNote => isArabic
+      ? 'يبقى الطلب معلقًا حتى انتهاء المهلة المعروضة، ثم ينتهي تلقائيًا.'
+      : 'The request stays pending until the shown deadline, then expires.';
+  String get cancelBooking => isArabic ? 'إلغاء الحجز' : 'Cancel booking';
+  String get cancelBookingConfirm => isArabic
+      ? 'سيُلغى هذا الحجز. لا يمكن التراجع. متابعة؟'
+      : 'This booking will be cancelled. This cannot be undone. Continue?';
+  String get cancelReasonOptional =>
+      isArabic ? 'سبب الإلغاء (اختياري)' : 'Cancellation reason (optional)';
+  String get bookingCancelled => isArabic ? 'أُلغي الحجز' : 'Booking cancelled';
+  String get statusHistory => isArabic ? 'سجل الحالات' : 'Status history';
+  String get bookingRequests => isArabic ? 'طلبات الحجز' : 'Booking requests';
+  String get loadingRequests => isArabic
+      ? 'جارٍ تحميل الطلبات…'
+      : 'Loading requests…';
+  String get noPendingRequests => isArabic
+      ? 'لا توجد طلبات معلقة حاليًا.'
+      : 'No pending requests right now.';
+  String get acceptBooking => isArabic ? 'قبول الطلب' : 'Accept request';
+  String get rejectBooking => isArabic ? 'رفض الطلب' : 'Reject request';
+  String get rejectReasonOptional =>
+      isArabic ? 'سبب الرفض (اختياري)' : 'Rejection reason (optional)';
+  String get bookingAccepted =>
+      isArabic ? 'قُبل الطلب بانتظار دفع العميلة' : 'Request accepted';
+  String get bookingRejected => isArabic ? 'رُفض الطلب' : 'Request rejected';
+  String get requestExpired => isArabic
+      ? 'انتهت مهلة هذا الطلب.'
+      : 'This request has expired.';
+  String get slotLost => isArabic
+      ? 'لم يعد الموعد متاحًا. حُدثت الحالة الحالية.'
+      : 'The slot is no longer available. Current state reloaded.';
+  String get bookingStateChanged => isArabic
+      ? 'تغيرت حالة الحجز. حُدثت الحالة الحالية.'
+      : 'The booking state changed. Current state reloaded.';
+  String bookingStatusName(String status) {
+    const arabic = {
+      'pending': 'معلق',
+      'accepted': 'مقبول',
+      'confirmed': 'مؤكد',
+      'completed': 'مكتمل',
+      'rejected': 'مرفوض',
+      'cancelled': 'ملغي',
+      'expired': 'منتهي',
+    };
+    const english = {
+      'pending': 'Pending',
+      'accepted': 'Accepted',
+      'confirmed': 'Confirmed',
+      'completed': 'Completed',
+      'rejected': 'Rejected',
+      'cancelled': 'Cancelled',
+      'expired': 'Expired',
+    };
+    return (isArabic ? arabic : english)[status] ?? status;
+  }
   String weekdayName(int day) {
     const arabic = [
       'الإثنين',

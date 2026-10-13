@@ -404,7 +404,17 @@ migrations وبيانات الاختبارات في المراجعة الحال�
 - **الملفات الأساسية**: `packages/catalog` (`availability_api.dart` + 9 اختبارات وحدة)، `localization` (نصوص A4 + أسماء الأيام)، `expert_app` (`availability_screen.dart` + 4 اختبارات ودج + تبويب وراوتر)، `customer_app` (`cairo_slot_time.dart` + قسم Slots + 4 اختبارات، واعتمادية `timezone` الجديدة للعرض القاهري الصحيح).
 - **APIs الحقيقية**: `PUT/GET /experts/me/availability` و`POST/GET/DELETE /experts/me/availability-exceptions` و`GET /experts/:id/slots` — بلا تغيير Backend. Mocks فقط كـfakes في اختبارات الويدجت؛ حساب Slots الحقيقي مُغطى باختبارات Backend التكاملية (`scheduling-bookings`).
 - **التحقق**: expert analyze نظيف وtest 10/10؛ customer analyze نظيف وtest 23/23؛ catalog 18/18؛ localization 3/3؛ `git diff --check` نظيف.
-- **المتبقي**: A5 (إنشاء الحجز والقبول) — المرحلة التالية. لا production-ready ولا deploy.
+- **المتبقي**: A5 (إنشاء الحجز والقبول) — نفذت أدناه. لا production-ready ولا deploy.
+
+## تطبيقات الهاتف — A5: إنشاء الحجز وقبول الخبيرة (2026-10-14)
+
+- **السلوك المنفذ (عميلة)**: تبويب رابع «حجوزاتي» (فلاتر الحالات السبع + pagination + سحب للتحديث)؛ تفاصيل الحجز (الحالة والمبالغ واللقطات وسجل الحالات ومهلة pending) مع إلغاء مسموح (pending/accepted) بتأكيد وسبب اختياري؛ إنشاء الحجز من موعد الخبيرة عبر مراجعة (الخدمة/الموعد/العنوان/الإجمالي من الخادم فقط) ثم POST مع `Idempotency-Key` UUID جديد لكل نية وقفل زر الإرسال ضد duplicate taps؛ بعده تنقل لتفاصيل الحجز المنشأ. أخطاء 409 (موعد مفقود/تغير حالة) تعيد التحميل برسالة دون نجاح وهمي. إعادة الجلب عند الاستئناف والعودة.
+- **السلوك المنفذ (خبيرة)**: تبويب «طلبات الحجز» — قائمة pending الخاصة بها (النطاق خادميًا) مع المبلغ والموعد والملاحظات؛ قبول ورفض (بسبب اختياري) خلف تأكيد؛ كل انتقال يعيد التحميل؛ رسائل مخصصة لـBOOKING_EXPIRED/SLOT_TAKEN/INVALID_TRANSITION. لا عنوان عميلة كامل في هذه المرحلة (قرار الكشف في A7)؛ لا دفع ولا `paid` كحالة حجز.
+- **القرارات**: لا Preview/Quote في العقد — المراجعة تعرض سعر العرض الخادمي واللقطة الرسمية تعود من الإنشاء. الإلغاء مسموح من pending/accepted للطرفين. `paid` ليست حالة حجز.
+- **الملفات الأساسية**: `packages/catalog` (`booking_api.dart` + 3 اختبارات، ورأس `Idempotency-Key` في `networking`)، `customer_app` (`bookings_screen.dart` + تدفق المراجعة في `catalog_screen.dart` + 3 اختبارات، واعتمادية `uuid`)، `expert_app` (`requests_screen.dart` + 4 اختبارات + تبويب خامس)، `localization` (نصوص A5 وحالات الحجز).
+- **APIs الحقيقية**: `POST /bookings` (+`Idempotency-Key`) و`GET /bookings` و`GET /bookings/:id` و`POST .../accept|reject|cancel` — بلا تغيير Backend. fakes في اختبارات الويدجت فقط؛ العقد الحقيقي مُغطى باختبارات Backend (`scheduling-bookings` وغيرها). اختبارات الويدجت كشفت خللًا حقيقيًا وأصلحته (التأكيد بسبب فارغ كان يُجهض الإلغاء — علامة `_reasonAborted` المميزة).
+- **التحقق**: customer analyze نظيف وtest 26/26؛ expert analyze نظيف وtest 14/14؛ catalog 21/21؛ networking 9/9؛ localization 3/3؛ `git diff --check` نظيف.
+- **المتبقي**: A6 (الدفع والتأكيد) — بوابة الدفع غير محسومة (Demo أم Sandbox) وتحتاج سؤال المستخدم قبل التنفيذ. لا production-ready ولا deploy.
 
 ## توحيد أيقونة لمسة (2026-10-12)
 
