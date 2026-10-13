@@ -5,10 +5,13 @@ import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
+import 'cairo_slot_time.dart';
+
 class CatalogScreen extends StatefulWidget {
-  const CatalogScreen({required this.gateway, super.key});
+  const CatalogScreen({required this.gateway, required this.availability, super.key});
 
   final CatalogGateway gateway;
+  final AvailabilityGateway availability;
 
   @override
   State<CatalogScreen> createState() => _CatalogScreenState();
@@ -98,6 +101,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     MaterialPageRoute<void>(
                       builder: (_) => ExpertDetailScreen(
                         gateway: widget.gateway,
+                        availability: widget.availability,
                         expertId: _experts[index].id,
                       ),
                     ),
@@ -510,18 +514,21 @@ class _ExpertCard extends StatelessWidget {
 class ExpertDetailScreen extends StatefulWidget {
   const ExpertDetailScreen({
     required this.gateway,
+    required this.availability,
     required this.expertId,
     super.key,
   });
 
   final CatalogGateway gateway;
+  final AvailabilityGateway availability;
   final String expertId;
 
   @override
   State<ExpertDetailScreen> createState() => _ExpertDetailScreenState();
 }
 
-class _ExpertDetailScreenState extends State<ExpertDetailScreen> {
+class _ExpertDetailScreenState extends State<ExpertDetailScreen>
+    with WidgetsBindingObserver {
   ExpertDetail? _expert;
   List<PortfolioItem> _portfolio = const [];
   List<PublicReview> _reviews = const [];
@@ -532,11 +539,32 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen> {
   Object? _error;
   Object? _reviewError;
   final Map<String, Future<List<int>>> _portfolioBytes = {};
+  int? _slotServiceId;
+  String? _slotDate;
+  List<ExpertSlot> _slots = const [];
+  bool _loadingSlots = false;
+  Object? _slotsError;
+  int _slotsRequest = 0;
 
   @override
   void initState() {
     super.initState();
+    ensureCairoTime();
+    WidgetsBinding.instance.addObserver(this);
     _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _expert != null) {
+      _loadSlots();
+    }
   }
 
   @override
@@ -560,6 +588,7 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen> {
   Widget _content() {
     final expert = _expert!;
     return ListView(
+      key: const ValueKey('expert-detail-list'),
       padding: const EdgeInsets.all(16),
       children: [
         Center(
@@ -615,6 +644,24 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen> {
                         ),
                       ),
                     ),
+                const SizedBox(height: 16),
+                _SlotsSection(
+                  services: _slotServices,
+                  serviceId: _slotServiceId,
+                  date: _slotDate,
+                  slots: _slots,
+                  loading: _loadingSlots,
+                  error: _slotsError,
+                  onServiceChanged: (value) {
+                    setState(() => _slotServiceId = value);
+                    _loadSlots();
+                  },
+                  onDateChanged: (value) {
+                    setState(() => _slotDate = value);
+                    _loadSlots();
+                  },
+                  onRetry: _loadSlots,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   context.lamsa.portfolio,
@@ -701,13 +748,23 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen> {
       ]);
       final reviews = results[2] as CatalogPage<PublicReview>;
       if (!mounted) return;
+      final detail = results[0] as ExpertDetail;
+      final activeServices = detail.services
+          .where((item) => item.isActive && item.serviceIsActive)
+          .toList(growable: false);
+      final firstUsable = activeServices.isEmpty ? null : activeServices.first;
       setState(() {
-        _expert = results[0] as ExpertDetail;
+        _expert = detail;
         _portfolio = results[1] as List<PortfolioItem>;
         _reviews = reviews.items;
         _reviewPage = reviews.page;
         _hasMoreReviews = reviews.hasNext;
+        if (firstUsable != null) {
+          _slotServiceId ??= firstUsable.serviceId;
+          _slotDate ??= nextCairoDates(now: DateTime.now()).first;
+        }
       });
+      _loadSlots();
     } catch (error) {
       if (mounted) setState(() => _error = error);
     } finally {
@@ -715,10 +772,48 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen> {
     }
   }
 
+  List<ExpertOffering> get _slotServices =>
+      _expert?.services
+          .where((item) => item.isActive && item.serviceIsActive)
+          .toList(growable: false) ??
+      const <ExpertOffering>[];
+
+  /// Slots always come from the server; stale responses are ignored so a
+  /// service or day change never shows another query's results.
+  Future<void> _loadSlots() async {
+    final serviceId = _slotServiceId;
+    final date = _slotDate;
+    if (serviceId == null || date == null) return;
+    final request = ++_slotsRequest;
+    setState(() {
+      _loadingSlots = true;
+      _slotsError = null;
+    });
+    try {
+      final days = await widget.availability.slots(
+        expertId: widget.expertId,
+        serviceId: serviceId,
+        from: date,
+        to: date,
+      );
+      if (!mounted || request != _slotsRequest) return;
+      final items = days.isEmpty ? const <ExpertSlot>[] : days.first.slots;
+      setState(() {
+        _slots = items;
+        _loadingSlots = false;
+      });
+    } catch (error) {
+      if (!mounted || request != _slotsRequest) return;
+      setState(() {
+        _slotsError = error;
+        _loadingSlots = false;
+      });
+    }
+  }
+
   Future<void> _loadMoreReviews() async {
     setState(() {
-      _loadingReviews = true;
-      _reviewError = null;
+      _loadingReviews = true;      _reviewError = null;
     });
     try {
       final result = await widget.gateway.reviews(
@@ -811,7 +906,7 @@ class _FailureView extends StatelessWidget {
 }
 
 class _InlineError extends StatelessWidget {
-  const _InlineError({required this.error, required this.onRetry});
+  const _InlineError({required this.error, required this.onRetry, super.key});
 
   final Object error;
   final VoidCallback onRetry;
@@ -831,6 +926,137 @@ class _InlineError extends StatelessWidget {
           TextButton(onPressed: onRetry, child: Text(context.lamsa.retry)),
         ],
       ),
+    );
+  }
+}
+
+/// Server-provided appointment slots for one expert and service (A4).
+///
+/// Day and service changes refetch from the backend; nothing is computed
+/// locally and no booking or hold is created here.
+class _SlotsSection extends StatelessWidget {
+  const _SlotsSection({
+    required this.services,
+    required this.serviceId,
+    required this.date,
+    required this.slots,
+    required this.loading,
+    required this.error,
+    required this.onServiceChanged,
+    required this.onDateChanged,
+    required this.onRetry,
+  });
+
+  final List<ExpertOffering> services;
+  final int? serviceId;
+  final String? date;
+  final List<ExpertSlot> slots;
+  final bool loading;
+  final Object? error;
+  final ValueChanged<int?> onServiceChanged;
+  final ValueChanged<String> onDateChanged;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (services.isEmpty) return const SizedBox.shrink();
+    final selected = services.cast<ExpertOffering?>().firstWhere(
+      (item) => item?.serviceId == serviceId,
+      orElse: () => null,
+    );
+    final dates = nextCairoDates(now: DateTime.now());
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.lamsa.appointmentSlots,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          context.lamsa.cairoTimeNote,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int>(
+          key: const ValueKey('slots-service'),
+          initialValue: serviceId,
+          decoration: InputDecoration(labelText: context.lamsa.selectService),
+          items: [
+            for (final service in services)
+              DropdownMenuItem(
+                value: service.serviceId,
+                child: Text(
+                  '${service.name} · ${context.lamsa.serviceDuration(service.durationMin)}',
+                ),
+              ),
+          ],
+          onChanged: onServiceChanged,
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 64,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: dates.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              final day = dates[index];
+              final selectedDay = day == date;
+              return ChoiceChip(
+                key: ValueKey('slots-day-$day'),
+                label: Text(
+                  '${context.lamsa.weekdayName(cairoWeekdayOf(day))} ${cairoDayLabel(day)}',
+                ),
+                selected: selectedDay,
+                onSelected: (_) => onDateChanged(day),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (selected != null)
+          Text(
+            '${selected.price} ${selected.currency} · ${context.lamsa.serviceDuration(selected.durationMin)}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        const SizedBox(height: 8),
+        if (loading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (error != null)
+          _InlineError(
+            key: const ValueKey('slots-error'),
+            error: error!,
+            onRetry: onRetry,
+          )
+        else if (slots.isEmpty)
+          LamsaStatusView(
+            status: LamsaStatus.empty,
+            title: context.lamsa.noSlots,
+            message: context.lamsa.noSlotsHint,
+            onRetry: onRetry,
+          )
+        else
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final slot in slots)
+                Chip(
+                  key: ValueKey('slot-${slot.startsAt}'),
+                  label: Text(
+                    '${cairoClockOf(slot.startsAt)} – ${cairoClockOf(slot.endsAt)}',
+                    textDirection: TextDirection.ltr,
+                  ),
+                ),
+            ],
+          ),
+      ],
     );
   }
 }

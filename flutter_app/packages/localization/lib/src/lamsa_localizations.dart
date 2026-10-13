@@ -353,6 +353,110 @@ class LamsaLocalizations {
   String priceWithCurrency(String price, String currency) => '$price $currency';
   String serviceDurationMinutes(int minutes) =>
       isArabic ? '$minutes دقيقة' : '$minutes minutes';
+
+  String get availability => isArabic ? 'التوفر والمواعيد' : 'Availability';
+  String get availabilityLoadFailed => isArabic
+      ? 'تعذر تحميل التوفر'
+      : 'Could not load availability';
+  String get loadingAvailability => isArabic
+      ? 'جارٍ تحميل الجدول والاستثناءات…'
+      : 'Loading schedule and exceptions…';
+  String get saving => isArabic ? 'جارٍ الحفظ…' : 'Saving…';
+  String get dayClosed => isArabic ? 'مغلق هذا اليوم' : 'Closed this day';
+  String get invalidTimeFormat => isArabic
+      ? 'استخدمي صيغة HH:MM بصيغة 24 ساعة'
+      : 'Use HH:MM 24-hour format';
+  String get invalidDateFormat => isArabic
+      ? 'استخدمي صيغة YYYY-MM-DD'
+      : 'Use YYYY-MM-DD format';
+  String get confirm => isArabic ? 'تأكيد' : 'Confirm';
+  String get weeklySchedule => isArabic ? 'الجدول الأسبوعي' : 'Weekly schedule';
+  String get weeklyScheduleHint => isArabic
+      ? 'العمل نهارًا فقط من 09:00 إلى 22:00 بتوقيت القاهرة، وحتى 3 فترات غير متداخلة لليوم.'
+      : 'Daytime only, 09:00–22:00 Cairo time, up to 3 non-overlapping intervals per day.';
+  String get addInterval => isArabic ? 'إضافة فترة' : 'Add interval';
+  String get startTime => isArabic ? 'وقت البداية' : 'Start time';
+  String get endTime => isArabic ? 'وقت النهاية' : 'End time';
+  String get deleteInterval => isArabic ? 'حذف الفترة' : 'Delete interval';
+  String get saveSchedule => isArabic ? 'حفظ الجدول' : 'Save schedule';
+  String get scheduleSaved =>
+      isArabic ? 'حُفظ الجدول من الخادم' : 'Schedule saved from the server';
+  String get discardChanges => isArabic ? 'تجاهل التعديلات' : 'Discard changes';
+  String get unsavedChanges => isArabic
+      ? 'لديكِ تعديلات غير محفوظة على الجدول.'
+      : 'You have unsaved schedule changes.';
+  String get maxIntervalsPerDay => isArabic
+      ? 'الحد الأقصى 3 فترات لليوم الواحد.'
+      : 'At most 3 intervals per day.';
+  String get overlappingIntervals => isArabic
+      ? 'فترات اليوم الواحد يجب ألا تتداخل.'
+      : 'Intervals on the same day must not overlap.';
+  String get endMustBeAfterStart => isArabic
+      ? 'وقت النهاية يجب أن يكون بعد البداية.'
+      : 'End time must be after start time.';
+  String get outsideDaytime => isArabic
+      ? 'الفترة يجب أن تكون داخل 09:00–22:00 بتوقيت القاهرة.'
+      : 'Intervals must stay within 09:00–22:00 Cairo time.';
+  String get scheduleConflict => isArabic
+      ? 'تغيرت البيانات على الخادم. أُعيد تحميل الحالة الحالية.'
+      : 'Data changed on the server. The current state was reloaded.';
+  String get exceptions => isArabic ? 'الاستثناءات' : 'Exceptions';
+  String get exceptionsHint => isArabic
+      ? 'يوم كامل أو جزء منه: متاح استثنائيًا أو مغلق، لتاريخ اليوم أو مستقبل.'
+      : 'Full or partial day: exceptionally open or closed, today or later.';
+  String get addException => isArabic ? 'إضافة استثناء' : 'Add exception';
+  String get exceptionDate => isArabic ? 'التاريخ' : 'Date';
+  String get fullDayLeave => isArabic ? 'إجازة يوم كامل' : 'Full-day leave';
+  String get availableException =>
+      isArabic ? 'متاح استثنائيًا' : 'Exceptionally available';
+  String get unavailableException => isArabic ? 'مغلق' : 'Unavailable';
+  String get reasonOptional =>
+      isArabic ? 'السبب (اختياري)' : 'Reason (optional)';
+  String get deleteException => isArabic ? 'حذف الاستثناء' : 'Delete exception';
+  String get deleteExceptionConfirm => isArabic
+      ? 'سيُحذف هذا الاستثناء نهائيًا. متابعة؟'
+      : 'This exception will be deleted permanently. Continue?';
+  String get noExceptions =>
+      isArabic ? 'لا توجد استثناءات حالية.' : 'No current exceptions.';
+  String get pastExceptionDate => isArabic
+      ? 'الاستثناء يجب أن يكون لتاريخ اليوم أو مستقبل.'
+      : 'Exceptions must be for today or a future date.';
+  String get appointmentSlots => isArabic ? 'المواعيد المتاحة' : 'Available slots';
+  String get selectDay => isArabic ? 'اختاري اليوم' : 'Select a day';
+  String get selectService => isArabic ? 'اختاري الخدمة' : 'Select a service';
+  String get noSlots => isArabic ? 'لا توجد مواعيد' : 'No slots';
+  String get noSlotsHint => isArabic
+      ? 'جرّبي يومًا آخر أو خدمة أخرى، أو أعيدي المحاولة لاحقًا.'
+      : 'Try another day or service, or retry later.';
+  String get slotsRefreshed => isArabic
+      ? 'حُدثت المواعيد من الخادم.'
+      : 'Slots refreshed from the server.';
+  String get cairoTimeNote => isArabic
+      ? 'كل الأوقات بتوقيت القاهرة.'
+      : 'All times are Cairo time.';
+  String weekdayName(int day) {
+    const arabic = [
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'الجمعة',
+      'السبت',
+      'الأحد',
+    ];
+    const english = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    final names = isArabic ? arabic : english;
+    if (day < 1 || day > 7) return '';
+    return names[day - 1];
+  }
 }
 
 class _LamsaLocalizationsDelegate

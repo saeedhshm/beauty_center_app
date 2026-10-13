@@ -13,7 +13,7 @@ void main() {
     final pending = Completer<CatalogPage<PublicExpert>>();
     final gateway = FakeCatalogGateway(onExperts: (_) => pending.future);
 
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
@@ -29,7 +29,7 @@ void main() {
     final gateway = FakeCatalogGateway(
       onExperts: (_) async => expertPage(const []),
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pumpAndSettle();
 
     final status = tester.widget<LamsaStatusView>(find.byType(LamsaStatusView));
@@ -50,7 +50,7 @@ void main() {
         return expertPage([expert('e1', 'Recovered expert')]);
       },
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pumpAndSettle();
     expect(
       tester.widget<LamsaStatusView>(find.byType(LamsaStatusView)).status,
@@ -69,7 +69,7 @@ void main() {
           ? expertPage([expert('e1', 'First expert')], hasNext: true)
           : expertPage([expert('e2', 'Second expert')], page: 2),
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pumpAndSettle();
 
     await selectSort(tester, 'Rating: highest first');
@@ -88,7 +88,7 @@ void main() {
     final gateway = FakeCatalogGateway(
       onExperts: (_) async => expertPage([expert('e1', 'Expert one')]),
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('catalog-sort')));
@@ -126,7 +126,7 @@ void main() {
         );
       },
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pumpAndSettle();
 
     await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
@@ -159,7 +159,7 @@ void main() {
         );
       },
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway)));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway())));
     await tester.pumpAndSettle();
 
     await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
@@ -229,8 +229,46 @@ class ExpertRequest {
   final String? query;
 }
 
-class FakeCatalogGateway implements CatalogGateway {
-  FakeCatalogGateway({required this.onExperts});
+class FakeAvailabilityGateway implements AvailabilityGateway {
+  List<SlotDay> days = const [];
+  int calls = 0;
+
+  @override
+  Future<List<WeeklySlot>> weekly() => throw UnimplementedError();
+
+  @override
+  Future<List<WeeklySlot>> replaceWeekly(List<WeeklySlot> slots) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<AvailabilityExceptionItem>> exceptions() =>
+      throw UnimplementedError();
+
+  @override
+  Future<AvailabilityExceptionItem> addException({
+    required String date,
+    String? startTime,
+    String? endTime,
+    required String type,
+    String? reason,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<void> deleteException(String id) => throw UnimplementedError();
+
+  @override
+  Future<List<SlotDay>> slots({
+    required String expertId,
+    required int serviceId,
+    required String from,
+    required String to,
+  }) async {
+    calls += 1;
+    return days;
+  }
+}
+
+class FakeCatalogGateway implements CatalogGateway {  FakeCatalogGateway({required this.onExperts});
 
   final Future<CatalogPage<PublicExpert>> Function(ExpertRequest request)
   onExperts;

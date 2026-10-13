@@ -3,6 +3,7 @@ import 'package:lamsa_authentication/lamsa_authentication.dart';
 import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 
+import 'availability_screen.dart';
 import 'expert_profile_screen.dart';
 import 'portfolio_screen.dart';
 import 'services_screen.dart';
@@ -13,6 +14,7 @@ class ExpertWorkspaceShell extends StatefulWidget {
     required this.expertApi,
     required this.workspaceApi,
     required this.catalogApi,
+    required this.availabilityApi,
     super.key,
   });
 
@@ -20,6 +22,7 @@ class ExpertWorkspaceShell extends StatefulWidget {
   final ExpertGateway expertApi;
   final ExpertWorkspaceGateway workspaceApi;
   final CatalogGateway catalogApi;
+  final AvailabilityGateway availabilityApi;
 
   @override
   State<ExpertWorkspaceShell> createState() => _ExpertWorkspaceShellState();
@@ -66,6 +69,11 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
         selectedIcon: const Icon(Icons.photo_library),
         label: context.lamsa.portfolio,
       ),
+      NavigationDestination(
+        icon: const Icon(Icons.schedule_outlined),
+        selectedIcon: const Icon(Icons.schedule),
+        label: context.lamsa.availability,
+      ),
     ];
     final pages = [
       ExpertProfileScreen(
@@ -82,6 +90,10 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
       PortfolioScreen(
         workspace: widget.workspaceApi,
         expertId: widget.manager.user!.id,
+        refreshSignal: _refreshSignal,
+      ),
+      ExpertAvailabilityScreen(
+        availability: widget.availabilityApi,
         refreshSignal: _refreshSignal,
       ),
     ];

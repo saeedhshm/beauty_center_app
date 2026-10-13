@@ -25,6 +25,7 @@ dependencies:
   lamsa_networking:
     path: ../../packages/networking
   latlong2: ^0.9.1
+  timezone: ^0.10.1
   url_launcher: ^6.3.2
 
 dev_dependencies:

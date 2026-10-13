@@ -12,6 +12,7 @@ class CustomerShell extends StatefulWidget {
     required this.accountApi,
     required this.catalogApi,
     required this.addressApi,
+    required this.availabilityApi,
     super.key,
   });
 
@@ -19,6 +20,7 @@ class CustomerShell extends StatefulWidget {
   final AccountGateway accountApi;
   final CatalogGateway catalogApi;
   final AddressGateway addressApi;
+  final AvailabilityGateway availabilityApi;
 
   @override
   State<CustomerShell> createState() => _CustomerShellState();
@@ -47,7 +49,10 @@ class _CustomerShellState extends State<CustomerShell> {
       ),
     ];
     final pages = [
-      CatalogScreen(gateway: widget.catalogApi),
+      CatalogScreen(
+        gateway: widget.catalogApi,
+        availability: widget.availabilityApi,
+      ),
       AddressesScreen(
         gateway: widget.addressApi,
         catalogGateway: widget.catalogApi,
