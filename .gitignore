@@ -3,4 +3,6 @@
 .dart_tool/
 **/.dart_tool/
 .flutter-plugins
+**/.flutter-plugins
 .flutter-plugins-dependencies
+**/.flutter-plugins-dependencies
