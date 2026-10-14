@@ -25,6 +25,7 @@ void main() {
           availability: _SlotsGateway(),
           addresses: _AddressesGateway(),
           bookings: bookings,
+          payments: _RecordingPayments(),
           expertId: 'expert-1',
         ),
       ),
@@ -60,7 +61,14 @@ void main() {
   testWidgets('list, detail history, and allowed cancel', (tester) async {
     final bookings = _BookingsGateway();
     await tester.pumpWidget(
-      testApp(Scaffold(body: CustomerBookingsScreen(bookings: bookings))),
+      testApp(
+        Scaffold(
+          body: CustomerBookingsScreen(
+            bookings: bookings,
+            payments: _RecordingPayments(),
+          ),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -82,8 +90,7 @@ void main() {
     expect(find.text('أُلغي الحجز'), findsOneWidget);
   });
 
-  testWidgets('conflict on cancel reloads the current state', (tester) async {
-    final bookings = _BookingsGateway(
+  testWidgets('conflict on cancel reloads the current state', (tester) async {    final bookings = _BookingsGateway(
       cancelError: const ApiFailure(
         kind: ApiFailureKind.conflict,
         code: 'INVALID_TRANSITION',
@@ -92,7 +99,11 @@ void main() {
     );
     await tester.pumpWidget(
       testApp(
-        BookingDetailScreen(bookings: bookings, bookingId: 'b1'),
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: _RecordingPayments(),
+          bookingId: 'b1',
+        ),
       ),
     );
     await tester.pumpAndSettle();
@@ -109,6 +120,181 @@ void main() {
       findsOneWidget,
     );
     expect(bookings.detailCalls, greaterThanOrEqualTo(2));
+  });
+
+  testWidgets('demo success confirms only after server reload', (
+    tester,
+  ) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    bookings.detailQueue.add(_booking(status: 'confirmed'));
+    final payments = _RecordingPayments();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: payments,
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('محاكاة بوابة الدفع'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('demo-success')));
+    await tester.pumpAndSettle();
+
+    expect(payments.initiateCalls, 1);
+    expect(payments.events, ['paid']);
+    expect(find.text('أكد الخادم الحجز. احتفظي برقمه لموعدك.'), findsOneWidget);
+    expect(find.text('مؤكد'), findsWidgets);
+  });
+
+  testWidgets('demo failure records the attempt without confirming', (
+    tester,
+  ) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    final payments = _RecordingPayments();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: payments,
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('demo-fail')));
+    await tester.pumpAndSettle();
+
+    expect(payments.events, ['failed']);
+    expect(
+      find.text('سُجل فشل المحاولة. يمكنكِ بدء محاولة جديدة.'),
+      findsOneWidget,
+    );
+    expect(find.text('مؤكد'), findsNothing);
+  });
+
+  testWidgets('cancelled simulation sends no event', (tester) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    final payments = _RecordingPayments();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: payments,
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('demo-cancel')));
+    await tester.pumpAndSettle();
+
+    expect(payments.events, isEmpty);
+    expect(find.text('مقبول'), findsWidgets);
+  });
+
+  testWidgets('timeout shows unknown and reloads', (tester) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    final payments = _RecordingPayments()..failSendWith = TimeoutException('t');
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: payments,
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('demo-success')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('تعذر التأكد من النتيجة. أُعيد جلب الحالة الحالية.'),
+      findsOneWidget,
+    );
+    expect(find.text('مؤكد'), findsNothing);
+  });
+
+  testWidgets('pending booking offers no pay button', (tester) async {    final bookings = _BookingsGateway();
+    final payments = _RecordingPayments();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: payments,
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('booking-pay')), findsNothing);
+    expect(
+      find.text('الدفع متاح بعد قبول الخبيرة للطلب.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('paid event without confirmation reports late success', (
+    tester,
+  ) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    bookings.detailQueue.add(_booking(status: 'accepted'));
+    final payments = _RecordingPayments();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: payments,
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('booking-pay')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('demo-success')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'سُجل الدفع دون تأكيد الحجز (انتهت المهلة أو تغيرت الحالة). راجعي التفاصيل.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('مؤكد'), findsNothing);
   });
 }
 
@@ -152,6 +338,69 @@ Booking _booking({String status = 'pending'}) => Booking(
     ),
   ],
 );
+
+class _RecordingPayments implements PaymentGateway {
+  int initiateCalls = 0;
+  final events = <String>[];
+  Object? failSendWith;
+
+  @override
+  Future<PaymentIntent> initiate(String bookingId) async {
+    initiateCalls += 1;
+    return PaymentIntent(
+      payment: BookingPayment(
+        id: 'pay1',
+        bookingId: bookingId,
+        amount: '300.50',
+        currency: 'EGP',
+        status: 'pending',
+        provider: 'demo',
+      ),
+      callbackToken: 'demo-token',
+      reused: false,
+    );
+  }
+
+  @override
+  Future<List<BookingPayment>> attempts(String bookingId) async {
+    if (events.isEmpty) return const [];
+    final last = events.last;
+    return [
+      BookingPayment(
+        id: 'pay1',
+        bookingId: bookingId,
+        amount: '300.50',
+        currency: 'EGP',
+        status: last == 'paid' ? 'paid' : 'failed',
+        provider: 'demo',
+      ),
+    ];
+  }
+
+  @override
+  Future<DemoEventResult> sendDemoEvent({
+    required String paymentId,
+    required String eventId,
+    required String outcome,
+    required String amount,
+    required String currency,
+    required String token,
+  }) async {
+    events.add(outcome);
+    if (failSendWith != null) throw failSendWith!;
+    return DemoEventResult(
+      payment: BookingPayment(
+        id: paymentId,
+        bookingId: 'b1',
+        amount: amount,
+        currency: currency,
+        status: outcome == 'paid' ? 'paid' : 'failed',
+        provider: 'demo',
+      ),
+      confirmed: false,
+    );
+  }
+}
 
 class _DetailGateway implements CatalogGateway {
   @override
@@ -313,6 +562,7 @@ class _BookingsGateway implements BookingGateway {
   final cancelled = <String>[];
   int detailCalls = 0;
   Completer<Booking>? createGate;
+  final detailQueue = <Booking>[];
 
   @override
   Future<Booking> createBooking({
@@ -346,6 +596,7 @@ class _BookingsGateway implements BookingGateway {
   @override
   Future<Booking> booking(String id) async {
     detailCalls += 1;
+    if (detailQueue.isNotEmpty) return detailQueue.removeAt(0);
     return _booking();
   }
 

@@ -23,6 +23,7 @@ class ExpertRequestsScreen extends StatefulWidget {
 class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
     with WidgetsBindingObserver {
   List<Booking> _items = const [];
+  List<Booking> _accepted = const [];
   bool _loading = true;
   Object? _error;
   String? _mutatingId;
@@ -60,12 +61,20 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
     if (!mounted) return;
     setState(() => _error = null);
     try {
-      final page = await widget.bookings.bookings(status: 'pending');
+      final results = await Future.wait([
+        widget.bookings.bookings(status: 'pending'),
+        widget.bookings.bookings(status: 'accepted'),
+      ]);
       if (!mounted) return;
       setState(() {
-        // Ownership is enforced server-side; keep only visible pendings.
-        _items = page.items
+        // Ownership is enforced server-side; keep only visible states.
+        _items = results[0].items
             .where((item) => item.status == BookingStates.pending)
+            .toList(growable: false);
+        // A6: accepted bookings awaiting customer payment, read-only here.
+        // Confirmation appears only after the server confirms it.
+        _accepted = results[1].items
+            .where((item) => item.status == BookingStates.accepted)
             .toList(growable: false);
         _loading = false;
       });
@@ -222,6 +231,31 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
                       ],
                     ),
                   ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          Text(
+            context.lamsa.acceptedAwaitingPayment,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          if (_accepted.isEmpty)
+            Text(
+              context.lamsa.noAcceptedAwaitingPayment,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          for (final booking in _accepted)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                key: ValueKey('accepted-${booking.id}'),
+                title: Text(
+                  '${booking.totalAmount} ${booking.currency}',
+                ),
+                subtitle: Text(
+                  booking.startsAt,
+                  textDirection: TextDirection.ltr,
                 ),
               ),
             ),

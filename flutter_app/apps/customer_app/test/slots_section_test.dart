@@ -42,6 +42,7 @@ void main() {
           availability: slots,
           addresses: _AddressesGateway(),
           bookings: _BookingsGateway(),
+          payments: _PaymentsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -69,6 +70,7 @@ void main() {
           availability: slots,
           addresses: _AddressesGateway(),
           bookings: _BookingsGateway(),
+          payments: _PaymentsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -123,6 +125,7 @@ void main() {
           availability: slots,
           addresses: _AddressesGateway(),
           bookings: _BookingsGateway(),
+          payments: _PaymentsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -170,6 +173,25 @@ ExpertDetail _detailData() => const ExpertDetail(
     ),
   ],
 );
+
+class _PaymentsGateway implements PaymentGateway {
+  @override
+  Future<PaymentIntent> initiate(String bookingId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<BookingPayment>> attempts(String bookingId) async => const [];
+
+  @override
+  Future<DemoEventResult> sendDemoEvent({
+    required String paymentId,
+    required String eventId,
+    required String outcome,
+    required String amount,
+    required String currency,
+    required String token,
+  }) => throw UnimplementedError();
+}
 
 class _AddressesGateway implements AddressGateway {
   @override

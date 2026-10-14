@@ -15,6 +15,7 @@ class CatalogScreen extends StatefulWidget {
     required this.availability,
     required this.addresses,
     required this.bookings,
+    required this.payments,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class CatalogScreen extends StatefulWidget {
   final AvailabilityGateway availability;
   final AddressGateway addresses;
   final BookingGateway bookings;
+  final PaymentGateway payments;
 
   @override
   State<CatalogScreen> createState() => _CatalogScreenState();
@@ -114,6 +116,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         availability: widget.availability,
                         addresses: widget.addresses,
                         bookings: widget.bookings,
+                        payments: widget.payments,
                         expertId: _experts[index].id,
                       ),
                     ),
@@ -529,6 +532,7 @@ class ExpertDetailScreen extends StatefulWidget {
     required this.availability,
     required this.addresses,
     required this.bookings,
+    required this.payments,
     required this.expertId,
     super.key,
   });
@@ -537,6 +541,7 @@ class ExpertDetailScreen extends StatefulWidget {
   final AvailabilityGateway availability;
   final AddressGateway addresses;
   final BookingGateway bookings;
+  final PaymentGateway payments;
   final String expertId;
 
   @override
@@ -854,6 +859,7 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
         MaterialPageRoute<void>(
           builder: (_) => BookingDetailScreen(
             bookings: widget.bookings,
+            payments: widget.payments,
             bookingId: created.id,
           ),
         ),

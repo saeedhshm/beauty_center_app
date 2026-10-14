@@ -3,6 +3,7 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
+import 'package:uuid/uuid.dart';
 
 import 'cairo_slot_time.dart';
 
@@ -20,11 +21,13 @@ const _visibleStatuses = [
 class CustomerBookingsScreen extends StatefulWidget {
   const CustomerBookingsScreen({
     required this.bookings,
+    required this.payments,
     this.refreshSignal,
     super.key,
   });
 
   final BookingGateway bookings;
+  final PaymentGateway payments;
   final Listenable? refreshSignal;
 
   @override
@@ -211,6 +214,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
                     MaterialPageRoute<void>(
                       builder: (_) => BookingDetailScreen(
                         bookings: widget.bookings,
+                        payments: widget.payments,
                         bookingId: booking.id,
                       ),
                     ),
@@ -238,11 +242,13 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
 class BookingDetailScreen extends StatefulWidget {
   const BookingDetailScreen({
     required this.bookings,
+    required this.payments,
     required this.bookingId,
     super.key,
   });
 
   final BookingGateway bookings;
+  final PaymentGateway payments;
   final String bookingId;
 
   @override
@@ -254,6 +260,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
   Booking? _booking;
   Object? _error;
   bool _cancelling = false;
+  List<BookingPayment> _attempts = const [];
+  bool _paying = false;
 
   @override
   void initState() {
@@ -278,14 +286,114 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
     setState(() => _error = null);
     try {
       final booking = await widget.bookings.booking(widget.bookingId);
-      if (mounted) setState(() => _booking = booking);
+      if (!mounted) return;
+      setState(() => _booking = booking);
+      try {
+        final attempts = await widget.payments.attempts(widget.bookingId);
+        if (mounted) setState(() => _attempts = attempts);
+      } on Object {
+        // Attempts are auxiliary; the booking still renders without them.
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
     }
   }
 
-  Future<void> _cancel() async {
+  /// Demo payment flow (A6): initiate, simulate an outcome on an explicitly
+  /// labeled demo sheet, then refetch. Confirmation is shown only from the
+  /// refetched booking — never from the simulated outcome itself.
+  Future<void> _startPayment() async {
     final booking = _booking;
+    if (booking == null || _paying || !mounted) return;
+    setState(() => _paying = true);
+    try {
+      final intent = await widget.payments.initiate(booking.id);
+      if (!mounted) return;
+      final outcome = await showDialog<String?>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => _DemoPaymentSheet(intent: intent),
+      );
+      if (!mounted) return;
+      if (outcome == null) {
+        // Cancelled simulation: the pending intent stays; just refresh.
+        await _load();
+        return;
+      }
+      try {
+        await widget.payments.sendDemoEvent(
+          paymentId: intent.payment.id,
+          eventId: const Uuid().v4(),
+          outcome: outcome,
+          amount: intent.payment.amount,
+          currency: intent.payment.currency,
+          token: intent.callbackToken,
+        );
+      } on ApiFailure catch (failure) {
+        if (!mounted) return;
+        if (failure.code == 'PAYMENT_ALREADY_SETTLED') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(context.lamsa.paymentSettledMessage)),
+          );
+        } else if (failure.code == 'AMOUNT_MISMATCH') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(failure.message)),
+          );
+        }
+      } on Object {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(context.lamsa.paymentUnknownMessage)),
+          );
+        }
+      }
+      if (!mounted) return;
+      final previousStatus = _booking?.status;
+      await _load();
+      if (!mounted) return;
+      final current = _booking;
+      if (current == null) return;
+      if (current.status == 'confirmed' && previousStatus != 'confirmed') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.lamsa.bookingConfirmedMessage)),
+        );
+      } else if (current.status == 'accepted' &&
+          _attempts.any((item) => item.isPaid)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.lamsa.lateSuccessMessage)),
+        );
+      } else if (_attempts.any((item) => item.isFailed)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.lamsa.paymentFailedMessage)),
+        );
+      }
+    } on ApiFailure catch (failure) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failure.code == 'PAYMENT_ALREADY_SETTLED'
+                ? context.lamsa.paymentSettledMessage
+                : failure.kind == ApiFailureKind.conflict
+                ? context.lamsa.bookingStateChanged
+                : failure.message,
+          ),
+        ),
+      );
+      await _load();
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.lamsa.paymentUnknownMessage)),
+        );
+        await _load();
+      }
+    } finally {
+      if (mounted) setState(() => _paying = false);
+    }
+  }
+
+  Future<void> _cancel() async {    final booking = _booking;
     if (booking == null || _cancelling) return;
     final reason = await _requestReason(context);
     if (reason == null || !mounted) return;
@@ -402,6 +510,14 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                         child: Text(context.lamsa.cancelBooking),
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    _PaymentSection(
+                      booking: _booking!,
+                      attempts: _attempts,
+                      paying: _paying,
+                      onPay: _startPayment,
+                      onRefresh: _load,
+                    ),
                   ],
                 ),
               ),
@@ -442,8 +558,7 @@ Future<String?> _requestReason(BuildContext context) async {
   return reason;
 }
 
-class _ReasonDialog extends StatefulWidget {
-  const _ReasonDialog();
+class _ReasonDialog extends StatefulWidget {  const _ReasonDialog();
 
   @override
   State<_ReasonDialog> createState() => _ReasonDialogState();
@@ -485,6 +600,117 @@ class _ReasonDialogState extends State<_ReasonDialog> {
         key: const ValueKey('cancel-confirm'),
         onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
         child: Text(context.lamsa.cancelBooking),
+      ),
+    ],
+  );
+}
+
+/// Payment section of a booking detail. Shows attempt history from the
+/// server and offers demo payment only for accepted bookings.
+class _PaymentSection extends StatelessWidget {
+  const _PaymentSection({
+    required this.booking,
+    required this.attempts,
+    required this.paying,
+    required this.onPay,
+    required this.onRefresh,
+  });
+
+  final Booking booking;
+  final List<BookingPayment> attempts;
+  final bool paying;
+  final VoidCallback onPay;
+  final VoidCallback onRefresh;
+
+  String _attemptLabel(BuildContext context, BookingPayment attempt) {
+    final state = switch (attempt.status) {
+      'paid' => context.lamsa.paymentPaid,
+      'failed' => context.lamsa.paymentFailed,
+      'refunded' => context.lamsa.paymentRefunded,
+      _ => context.lamsa.paymentPending,
+    };
+    return '$state · ${attempt.amount} ${attempt.currency}';
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Text(
+        context.lamsa.paymentSection,
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      const SizedBox(height: 4),
+      if (booking.isPending)
+        Text(
+          context.lamsa.paymentNotEligible,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      for (final attempt in attempts)
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: Text(_attemptLabel(context, attempt)),
+          subtitle: attempt.failureReason != null
+              ? Text(attempt.failureReason!)
+              : null,
+        ),
+      if (booking.isAccepted) ...[
+        const SizedBox(height: 8),
+        FilledButton(
+          key: const ValueKey('booking-pay'),
+          onPressed: paying ? null : onPay,
+          child: Text(
+            paying ? context.lamsa.sending : context.lamsa.payNowDemo,
+          ),
+        ),
+      ],
+    ],
+  );
+}
+
+/// Explicitly labeled demo provider sheet. No card fields exist: the user
+/// only picks a simulated outcome, and amounts always echo the server intent.
+class _DemoPaymentSheet extends StatelessWidget {
+  const _DemoPaymentSheet({required this.intent});
+
+  final PaymentIntent intent;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(context.lamsa.demoPaymentTitle),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.lamsa.demoPaymentNotice,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '${intent.payment.amount} ${intent.payment.currency}',
+          style: Theme.of(context).textTheme.headlineSmall,
+          textDirection: TextDirection.ltr,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    ),
+    actions: [
+      TextButton(
+        key: const ValueKey('demo-cancel'),
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(context.lamsa.cancel),
+      ),
+      TextButton(
+        key: const ValueKey('demo-fail'),
+        onPressed: () => Navigator.of(context).pop('failed'),
+        child: Text(context.lamsa.simulateFailure),
+      ),
+      FilledButton(
+        key: const ValueKey('demo-success'),
+        onPressed: () => Navigator.of(context).pop('paid'),
+        child: Text(context.lamsa.simulateSuccess),
       ),
     ],
   );

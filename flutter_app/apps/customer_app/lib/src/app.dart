@@ -59,6 +59,9 @@ final addressApiProvider = Provider<AddressGateway>(
 final bookingApiProvider = Provider<BookingGateway>(
   (ref) => BookingApi(ref.watch(authenticatedApiClientProvider)),
 );
+final paymentApiProvider = Provider<PaymentGateway>(
+  (ref) => PaymentApi(ref.watch(authenticatedApiClientProvider)),
+);
 final availabilityApiProvider = Provider<AvailabilityGateway>(
   (ref) => AvailabilityApi(ref.watch(rawApiClientProvider)),
 );
@@ -109,6 +112,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           addressApi: ref.read(addressApiProvider),
           availabilityApi: ref.read(availabilityApiProvider),
           bookingApi: ref.read(bookingApiProvider),
+          paymentApi: ref.read(paymentApiProvider),
         ),
       ),
     ],

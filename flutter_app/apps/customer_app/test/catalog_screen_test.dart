@@ -13,7 +13,7 @@ void main() {
     final pending = Completer<CatalogPage<PublicExpert>>();
     final gateway = FakeCatalogGateway(onExperts: (_) => pending.future);
 
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
@@ -29,7 +29,7 @@ void main() {
     final gateway = FakeCatalogGateway(
       onExperts: (_) async => expertPage(const []),
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pumpAndSettle();
 
     final status = tester.widget<LamsaStatusView>(find.byType(LamsaStatusView));
@@ -50,7 +50,7 @@ void main() {
         return expertPage([expert('e1', 'Recovered expert')]);
       },
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pumpAndSettle();
     expect(
       tester.widget<LamsaStatusView>(find.byType(LamsaStatusView)).status,
@@ -69,7 +69,7 @@ void main() {
           ? expertPage([expert('e1', 'First expert')], hasNext: true)
           : expertPage([expert('e2', 'Second expert')], page: 2),
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pumpAndSettle();
 
     await selectSort(tester, 'Rating: highest first');
@@ -88,7 +88,7 @@ void main() {
     final gateway = FakeCatalogGateway(
       onExperts: (_) async => expertPage([expert('e1', 'Expert one')]),
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('catalog-sort')));
@@ -126,7 +126,7 @@ void main() {
         );
       },
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pumpAndSettle();
 
     await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
@@ -159,7 +159,7 @@ void main() {
         );
       },
     );
-    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway())));
+    await tester.pumpWidget(testApp(CatalogScreen(gateway: gateway, availability: FakeAvailabilityGateway(), addresses: FakeAddressGateway(), bookings: FakeBookingGateway(), payments: FakePaymentGateway())));
     await tester.pumpAndSettle();
 
     await tapVisible(tester, find.byKey(const Key('catalog-load-more')));
@@ -289,6 +289,26 @@ class FakeAddressGateway implements AddressGateway {
 
   @override
   Future<void> delete(String id) => throw UnimplementedError();
+}
+
+
+class FakePaymentGateway implements PaymentGateway {
+  @override
+  Future<PaymentIntent> initiate(String bookingId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<BookingPayment>> attempts(String bookingId) async => const [];
+
+  @override
+  Future<DemoEventResult> sendDemoEvent({
+    required String paymentId,
+    required String eventId,
+    required String outcome,
+    required String amount,
+    required String currency,
+    required String token,
+  }) => throw UnimplementedError();
 }
 
 class FakeBookingGateway implements BookingGateway {

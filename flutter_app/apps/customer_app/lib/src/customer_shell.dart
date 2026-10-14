@@ -15,6 +15,7 @@ class CustomerShell extends StatefulWidget {
     required this.addressApi,
     required this.availabilityApi,
     required this.bookingApi,
+    required this.paymentApi,
     super.key,
   });
 
@@ -24,6 +25,7 @@ class CustomerShell extends StatefulWidget {
   final AddressGateway addressApi;
   final AvailabilityGateway availabilityApi;
   final BookingGateway bookingApi;
+  final PaymentGateway paymentApi;
 
   @override
   State<CustomerShell> createState() => _CustomerShellState();
@@ -62,12 +64,16 @@ class _CustomerShellState extends State<CustomerShell> {
         availability: widget.availabilityApi,
         addresses: widget.addressApi,
         bookings: widget.bookingApi,
+        payments: widget.paymentApi,
       ),
       AddressesScreen(
         gateway: widget.addressApi,
         catalogGateway: widget.catalogApi,
       ),
-      CustomerBookingsScreen(bookings: widget.bookingApi),
+      CustomerBookingsScreen(
+        bookings: widget.bookingApi,
+        payments: widget.paymentApi,
+      ),
       LamsaAccountScreen(
         manager: widget.manager,
         api: widget.accountApi,

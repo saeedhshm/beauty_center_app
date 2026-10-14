@@ -480,6 +480,43 @@ class LamsaLocalizations {
   String get bookingCancelled => isArabic ? 'أُلغي الحجز' : 'Booking cancelled';
   String get statusHistory => isArabic ? 'سجل الحالات' : 'Status history';
   String get bookingRequests => isArabic ? 'طلبات الحجز' : 'Booking requests';
+  String get acceptedAwaitingPayment => isArabic
+      ? 'مقبول بانتظار الدفع'
+      : 'Accepted, awaiting payment';
+  String get noAcceptedAwaitingPayment => isArabic
+      ? 'لا توجد حجوزات مقبولة بانتظار الدفع.'
+      : 'No accepted bookings awaiting payment.';
+  String get paymentSection => isArabic ? 'الدفع' : 'Payment';
+  String get payNowDemo => isArabic ? 'ادفعي الآن (تجريبي)' : 'Pay now (demo)';
+  String get demoPaymentTitle =>
+      isArabic ? 'محاكاة بوابة الدفع' : 'Payment gateway simulation';
+  String get demoPaymentNotice => isArabic
+      ? 'بيئة تجريبية: لا تتحرك أموال حقيقية ولا توجد بيانات بطاقة. اختاري نتيجة المحاكاة.'
+      : 'Demo environment: no real money moves and no card data. Choose a simulated outcome.';
+  String get simulateSuccess => isArabic ? 'محاكاة نجاح الدفع' : 'Simulate success';
+  String get simulateFailure => isArabic ? 'محاكاة فشل الدفع' : 'Simulate failure';
+  String get paymentPending => isArabic ? 'بانتظار الدفع' : 'Payment pending';
+  String get paymentPaid => isArabic ? 'مدفوع' : 'Paid';
+  String get paymentFailed => isArabic ? 'فشل الدفع' : 'Payment failed';
+  String get paymentRefunded => isArabic ? 'مسترد' : 'Refunded';
+  String get bookingConfirmedMessage => isArabic
+      ? 'أكد الخادم الحجز. احتفظي برقمه لموعدك.'
+      : 'The server confirmed the booking.';
+  String get paymentFailedMessage => isArabic
+      ? 'سُجل فشل المحاولة. يمكنكِ بدء محاولة جديدة.'
+      : 'The attempt was recorded as failed. You can start a new attempt.';
+  String get paymentUnknownMessage => isArabic
+      ? 'تعذر التأكد من النتيجة. أُعيد جلب الحالة الحالية.'
+      : 'The outcome is unknown. Current state was reloaded.';
+  String get paymentNotEligible => isArabic
+      ? 'الدفع متاح بعد قبول الخبيرة للطلب.'
+      : 'Payment is available after the expert accepts the request.';
+  String get paymentSettledMessage => isArabic
+      ? 'يوجد دفع مسجل لهذا الحجز. حُدثت الحالة الحالية.'
+      : 'This booking already has a recorded payment. State reloaded.';
+  String get lateSuccessMessage => isArabic
+      ? 'سُجل الدفع دون تأكيد الحجز (انتهت المهلة أو تغيرت الحالة). راجعي التفاصيل.'
+      : 'Payment recorded without booking confirmation. Review the details.';
   String get loadingRequests => isArabic
       ? 'جارٍ تحميل الطلبات…'
       : 'Loading requests…';
