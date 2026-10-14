@@ -4,6 +4,7 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 
 import 'availability_screen.dart';
+import 'booking_detail_screen.dart';
 import 'expert_profile_screen.dart';
 import 'earnings_screen.dart';
 import 'notifications_screen.dart';
@@ -130,7 +131,7 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
       ),
       ExpertNotificationsScreen(
         notifications: widget.notificationApi,
-        onOpenRequests: () => _select(4),
+        onOpenBooking: (bookingId) => _openBooking(bookingId),
         refreshSignal: _refreshSignal,
       ),
       ExpertEarningsScreen(
@@ -195,4 +196,19 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
   void _select(int value) => setState(() => _index = value);
 
   void _refresh() => _refreshSignal.value += 1;
+
+  /// Opens the authoritative detail for a validated booking id, then
+  /// refreshes notifications and requests on return so read states and
+  /// moved bookings settle everywhere.
+  Future<void> _openBooking(String bookingId) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ExpertBookingDetailScreen(
+          bookings: widget.bookingApi,
+          bookingId: bookingId,
+        ),
+      ),
+    );
+    _refresh();
+  }
 }

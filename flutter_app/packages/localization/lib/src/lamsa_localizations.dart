@@ -454,6 +454,12 @@ class LamsaLocalizations {
   String get pendingExpiry =>
       isArabic ? 'ينتهي التعليق في' : 'Pending until';
   String get bookingDetail => isArabic ? 'تفاصيل الحجز' : 'Booking details';
+  String get bookingNotFound => isArabic
+      ? 'الحجز غير موجود أو لا تملكين صلاحية عرضه'
+      : 'Booking not found or not shared with you';
+  String get invalidBookingLink => isArabic
+      ? 'رابط التنبيه غير صالح'
+      : 'This notification link is invalid';
   String get noBookings => isArabic ? 'لا توجد حجوزات بعد.' : 'No bookings yet.';
   String get noBookingsHint => isArabic
       ? 'اختاري خبيرة وموعدًا من الكتالوج لإنشاء أول حجز.'
@@ -465,6 +471,7 @@ class LamsaLocalizations {
       : 'Add an address first from the addresses tab.';
   String get notesOptional =>
       isArabic ? 'ملاحظات (اختياري)' : 'Notes (optional)';
+  String get notes => isArabic ? 'ملاحظات' : 'Notes';
   String get confirmBooking => isArabic ? 'تأكيد إرسال الطلب' : 'Confirm request';
   String get bookingCreated =>
       isArabic ? 'أُرسل طلب الحجز إلى الخبيرة' : 'Booking request sent';

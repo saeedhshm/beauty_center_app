@@ -5,19 +5,19 @@ import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
 /// Expert notifications center (A8 partial): server list, unread filter,
-/// mark-read, and handoff to the owned requests tab for booking items.
-/// The booking itself is always refetched there; nothing is read from the
-/// notification payload beyond the reference.
+/// mark-read, and deep-open of the referenced booking through a fresh
+/// `GET /bookings/:id` fetch. Nothing is read from the notification payload
+/// beyond the validated reference.
 class ExpertNotificationsScreen extends StatefulWidget {
   const ExpertNotificationsScreen({
     required this.notifications,
-    required this.onOpenRequests,
+    required this.onOpenBooking,
     this.refreshSignal,
     super.key,
   });
 
   final NotificationGateway notifications;
-  final VoidCallback onOpenRequests;
+  final ValueChanged<String> onOpenBooking;
   final Listenable? refreshSignal;
 
   @override
@@ -118,8 +118,28 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
       }
     }
     if (!mounted) return;
-    if (item.bookingId != null) widget.onOpenRequests();
-    await _load();
+    final bookingId = _validatedBookingId(item.bookingId);
+    if (bookingId == null) {
+      if (item.bookingId != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.lamsa.invalidBookingLink)),
+        );
+      }
+      return;
+    }
+    widget.onOpenBooking(bookingId);
+  }
+
+  /// Accepts only well-formed `lamsa://booking/<uuid>` references so a
+  /// corrupt id never navigates anywhere. Anything else yields null and the
+  /// caller shows a safe message instead.
+  static String? _validatedBookingId(String? rawId) {
+    final id = rawId?.trim();
+    if (id == null || id.isEmpty) return null;
+    final link = parseBookingLink(
+      Uri(scheme: 'lamsa', host: 'booking', pathSegments: [id]),
+    );
+    return link?.bookingId;
   }
 
   @override

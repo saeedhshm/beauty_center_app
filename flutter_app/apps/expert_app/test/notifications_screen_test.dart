@@ -5,18 +5,18 @@ import 'package:lamsa_expert/src/notifications_screen.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 
 void main() {
-  testWidgets('booking item marks read and hands off to requests', (
+  testWidgets('booking item marks read and opens the validated booking', (
     tester,
   ) async {
     final notifications = _NotificationsGateway(
-      items: [_item('n1', bookingId: 'b1')],
+      items: [_item('n1', bookingId: _bookingId(1))],
     );
-    var openedRequests = 0;
+    final opened = <String>[];
     await tester.pumpWidget(
       _app(
         ExpertNotificationsScreen(
           notifications: notifications,
-          onOpenRequests: () => openedRequests += 1,
+          onOpenBooking: opened.add,
         ),
       ),
     );
@@ -26,19 +26,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(notifications.read, ['n1']);
-    expect(openedRequests, 1);
+    expect(opened, [_bookingId(1)]);
   });
 
   testWidgets('plain item marks read without navigation', (tester) async {
     final notifications = _NotificationsGateway(
       items: [_item('n2', bookingId: null)],
     );
-    var openedRequests = 0;
+    final opened = <String>[];
     await tester.pumpWidget(
       _app(
         ExpertNotificationsScreen(
           notifications: notifications,
-          onOpenRequests: () => openedRequests += 1,
+          onOpenBooking: opened.add,
         ),
       ),
     );
@@ -50,7 +50,32 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(notifications.read, ['n2']);
-    expect(openedRequests, 0);
+    expect(opened, isEmpty);
+  });
+
+  testWidgets('corrupt booking id shows a safe message, no navigation', (
+    tester,
+  ) async {
+    final notifications = _NotificationsGateway(
+      items: [_item('n3', bookingId: 'not-a-uuid')],
+    );
+    final opened = <String>[];
+    await tester.pumpWidget(
+      _app(
+        ExpertNotificationsScreen(
+          notifications: notifications,
+          onOpenBooking: opened.add,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('notification-n3')));
+    await tester.pumpAndSettle();
+
+    expect(notifications.read, ['n3']);
+    expect(opened, isEmpty);
+    expect(find.text('رابط التنبيه غير صالح'), findsOneWidget);
   });
 }
 
@@ -60,6 +85,11 @@ Widget _app(Widget child) => MaterialApp(
   localizationsDelegates: LamsaLocalizations.localizationsDelegates,
   home: Scaffold(body: child),
 );
+
+/// Deterministic valid UUIDs: the notification validator only accepts
+/// well-formed `lamsa://booking/<uuid>` references.
+String _bookingId(int n) =>
+    '00000000-0000-4000-8000-00000000000$n';
 
 AppNotification _item(String id, {required String? bookingId}) =>
     AppNotification(
