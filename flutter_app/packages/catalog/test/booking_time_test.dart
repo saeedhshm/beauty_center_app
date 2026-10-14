@@ -43,4 +43,27 @@ void main() {
     expect(cairoWeekdayOf('2026-10-20'), 2);
     expect(cairoDayLabel('2026-10-20'), '20/10');
   });
+
+  test('parseLocalDate enforces a real calendar date', () {
+    expect(parseLocalDate('2026-10-20')?.day, 20);
+    expect(parseLocalDate('2026-99-99'), isNull);
+    expect(parseLocalDate('2026-13-01'), isNull);
+    expect(parseLocalDate('2026-02-30'), isNull);
+    expect(parseLocalDate('2026-02-29'), isNull);
+    expect(parseLocalDate('2024-02-29')?.day, 29);
+    expect(parseLocalDate('20-10-2026'), isNull);
+    expect(parseLocalDate('not-a-date'), isNull);
+  });
+
+  test('isValidClockTime enforces real 24-hour times', () {
+    expect(isValidClockTime('09:00'), isTrue);
+    expect(isValidClockTime('22:00'), isTrue);
+    expect(isValidClockTime('00:00'), isTrue);
+    expect(isValidClockTime('23:59'), isTrue);
+    expect(isValidClockTime('24:00'), isFalse);
+    expect(isValidClockTime('99:99'), isFalse);
+    expect(isValidClockTime('9:00'), isFalse);
+    expect(isValidClockTime('12:60'), isFalse);
+    expect(clockToMinutes('09:30'), 570);
+  });
 }

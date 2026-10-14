@@ -56,6 +56,35 @@ tz.TZDateTime _inZone(String instant, String timeZone) =>
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
+/// Strict `YYYY-MM-DD` calendar date with round-trip validation, mirroring
+/// the backend `parseLocalDate` (so `2026-99-99` or February 30th fail here
+/// instead of reaching the server). Returns null when invalid.
+DateTime? parseLocalDate(String value) {
+  final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value.trim());
+  if (match == null) return null;
+  final year = int.parse(match[1]!);
+  final month = int.parse(match[2]!);
+  final day = int.parse(match[3]!);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  // DateTime.utc normalizes overflow, so round-trip the components.
+  final probe = DateTime.utc(year, month, day);
+  if (probe.year != year || probe.month != month || probe.day != day) {
+    return null;
+  }
+  return probe;
+}
+
+/// Real 24-hour clock `HH:MM`, mirroring backend `isValidDayTime`.
+/// Rejects `24:00`, `99:99`, and other syntactically shaped non-times.
+bool isValidClockTime(String value) =>
+    RegExp(r'^([01]\d|2[0-3]):[0-5]\d$').hasMatch(value.trim());
+
+/// Minutes since midnight. The input must pass [isValidClockTime] first.
+int clockToMinutes(String value) {
+  final parts = value.trim().split(':');
+  return int.parse(parts[0]) * 60 + int.parse(parts[1]);
+}
+
 /// Readable Arabic date + time of an instant in the booking's own snapshot
 /// zone. Never reinterprets a historical booking in the current market zone
 /// and never touches the device timezone.

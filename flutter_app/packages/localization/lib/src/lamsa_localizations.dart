@@ -370,6 +370,9 @@ class LamsaLocalizations {
   String get invalidDateFormat => isArabic
       ? 'استخدمي صيغة YYYY-MM-DD'
       : 'Use YYYY-MM-DD format';
+  String get invalidRealDate => isArabic
+      ? 'تاريخ غير صالح، تحققي من الشهر واليوم'
+      : 'Invalid date, check the month and day';
   String get confirm => isArabic ? 'تأكيد' : 'Confirm';
   String get weeklySchedule => isArabic ? 'الجدول الأسبوعي' : 'Weekly schedule';
   String get weeklyScheduleHint => isArabic
