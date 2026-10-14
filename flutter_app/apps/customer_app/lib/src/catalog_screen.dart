@@ -580,7 +580,6 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
   @override
   void initState() {
     super.initState();
-    ensureCairoTime();
     WidgetsBinding.instance.addObserver(this);
     _load();
   }
@@ -862,9 +861,9 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
       ),
     );
     if (created != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.lamsa.bookingCreated)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.lamsa.bookingCreated)));
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => BookingDetailScreen(
@@ -885,7 +884,8 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
 
   Future<void> _loadMoreReviews() async {
     setState(() {
-      _loadingReviews = true;      _reviewError = null;
+      _loadingReviews = true;
+      _reviewError = null;
     });
     try {
       final result = await widget.gateway.reviews(
@@ -1152,19 +1152,14 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
           const SizedBox(height: 12),
           TextField(
             key: const ValueKey('booking-notes'),
-            decoration: InputDecoration(
-              labelText: context.lamsa.notesOptional,
-            ),
+            decoration: InputDecoration(labelText: context.lamsa.notesOptional),
             maxLength: 1000,
             maxLines: 2,
             onChanged: (value) => _notes = value,
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: const TextStyle(color: LamsaColors.danger),
-            ),
+            Text(_error!, style: const TextStyle(color: LamsaColors.danger)),
           ],
         ],
       ),
@@ -1184,6 +1179,7 @@ class _BookingReviewDialogState extends State<_BookingReviewDialog> {
     ],
   );
 }
+
 ///
 /// Day and service changes refetch from the backend; nothing is computed
 /// locally and no booking or hold is created here.

@@ -4,15 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_customer/src/bookings_screen.dart';
-import 'package:lamsa_customer/src/cairo_slot_time.dart';
 import 'package:lamsa_customer/src/catalog_screen.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
 void main() {
-  setUpAll(ensureCairoTime);
-
   testWidgets('slot tap reviews server amounts and creates once', (
     tester,
   ) async {
@@ -93,7 +90,8 @@ void main() {
     expect(find.text('أُلغي الحجز'), findsOneWidget);
   });
 
-  testWidgets('conflict on cancel reloads the current state', (tester) async {    final bookings = _BookingsGateway(
+  testWidgets('conflict on cancel reloads the current state', (tester) async {
+    final bookings = _BookingsGateway(
       cancelError: const ApiFailure(
         kind: ApiFailureKind.conflict,
         code: 'INVALID_TRANSITION',
@@ -127,9 +125,7 @@ void main() {
     expect(bookings.detailCalls, greaterThanOrEqualTo(2));
   });
 
-  testWidgets('demo success confirms only after server reload', (
-    tester,
-  ) async {
+  testWidgets('demo success confirms only after server reload', (tester) async {
     final bookings = _BookingsGateway();
     bookings.detailQueue.add(_booking(status: 'accepted'));
     bookings.detailQueue.add(_booking(status: 'confirmed'));
@@ -273,10 +269,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('booking-pay')), findsNothing);
-    expect(
-      find.text('الدفع متاح بعد قبول الخبيرة للطلب.'),
-      findsOneWidget,
-    );
+    expect(find.text('الدفع متاح بعد قبول الخبيرة للطلب.'), findsOneWidget);
   });
 
   testWidgets('paid event without confirmation reports late success', (
@@ -548,7 +541,6 @@ class _RecordingPayments implements PaymentGateway {
   }
 }
 
-
 class _ReviewsGateway implements ReviewGateway {
   BookingReview? existing;
   int submits = 0;
@@ -589,8 +581,10 @@ class _DetailGateway implements CatalogGateway {
   Future<List<CatalogCity>> cities() => throw UnimplementedError();
 
   @override
-  Future<CatalogPage<CatalogService>> services({int page = 1, int limit = 20}) =>
-      throw UnimplementedError();
+  Future<CatalogPage<CatalogService>> services({
+    int page = 1,
+    int limit = 20,
+  }) => throw UnimplementedError();
 
   @override
   Future<CatalogPage<PublicExpert>> experts({
@@ -695,23 +689,25 @@ class _SlotsGateway implements AvailabilityGateway {
 
 class _AddressesGateway implements AddressGateway {
   @override
-  Future<CatalogPage<CustomerAddress>> list({int page = 1, int limit = 20}) async =>
-      const CatalogPage(
-        items: [
-          CustomerAddress(
-            id: 'a1',
-            label: 'home',
-            addressText: 'Cairo synthetic address',
-            cityId: 1,
-            lat: '30.05',
-            lng: '31.24',
-            isDefault: true,
-          ),
-        ],
-        page: 1,
-        limit: 20,
-        hasNext: false,
-      );
+  Future<CatalogPage<CustomerAddress>> list({
+    int page = 1,
+    int limit = 20,
+  }) async => const CatalogPage(
+    items: [
+      CustomerAddress(
+        id: 'a1',
+        label: 'home',
+        addressText: 'Cairo synthetic address',
+        cityId: 1,
+        lat: '30.05',
+        lng: '31.24',
+        isDefault: true,
+      ),
+    ],
+    page: 1,
+    limit: 20,
+    hasNext: false,
+  );
 
   @override
   Future<CustomerAddress> create({
@@ -765,12 +761,7 @@ class _BookingsGateway implements BookingGateway {
 
   @override
   Future<CatalogPage<Booking>> bookings({String? status, int page = 1}) async =>
-      CatalogPage(
-        items: [_booking()],
-        page: 1,
-        limit: 20,
-        hasNext: false,
-      );
+      CatalogPage(items: [_booking()], page: 1, limit: 20, hasNext: false);
 
   @override
   Future<Booking> booking(String id) async {

@@ -10,8 +10,6 @@ import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
 void main() {
-  setUpAll(ensureCairoTime);
-
   test('cairo clock conversion respects DST', () {
     // 2026-10-20 is inside Egypt DST (UTC+3).
     expect(cairoClockOf('2026-10-20T07:00:00.000Z'), '10:00');
@@ -60,7 +58,6 @@ void main() {
   testWidgets('day change refetches and ignores stale responses', (
     tester,
   ) async {
-    ensureCairoTime();
     final today = nextCairoDates(now: DateTime.now()).first;
     final first = Completer<List<SlotDay>>();
     final slots = _SlotsGateway(deferred: {today: first});
@@ -219,7 +216,6 @@ class _AddressesGateway implements AddressGateway {
   Future<void> delete(String id) => throw UnimplementedError();
 }
 
-
 class _ReviewsGateway implements ReviewGateway {
   @override
   Future<BookingReview> submit(
@@ -274,8 +270,10 @@ class _DetailGateway implements CatalogGateway {
   Future<List<CatalogCity>> cities() => throw UnimplementedError();
 
   @override
-  Future<CatalogPage<CatalogService>> services({int page = 1, int limit = 20}) =>
-      throw UnimplementedError();
+  Future<CatalogPage<CatalogService>> services({
+    int page = 1,
+    int limit = 20,
+  }) => throw UnimplementedError();
 
   @override
   Future<CatalogPage<PublicExpert>> experts({

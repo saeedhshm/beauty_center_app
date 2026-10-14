@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamsa_catalog/lamsa_catalog.dart';
-import 'package:lamsa_customer/src/cairo_slot_time.dart';
 import 'package:lamsa_customer/src/notifications_screen.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 
 void main() {
-  setUpAll(ensureCairoTime);
-
   testWidgets('list marks read and opens the booking fresh', (tester) async {
     final notifications = _NotificationsGateway(
       items: [
@@ -153,8 +150,7 @@ class _NotificationsGateway implements NotificationGateway {
   }
 
   @override
-  Future<int> unreadCount() async =>
-      items.where((item) => !item.isRead).length;
+  Future<int> unreadCount() async => items.where((item) => !item.isRead).length;
 
   @override
   Future<void> markRead(String id) async {

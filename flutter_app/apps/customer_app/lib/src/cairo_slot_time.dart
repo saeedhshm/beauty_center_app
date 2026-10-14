@@ -4,13 +4,19 @@ import 'package:timezone/timezone.dart' as tz;
 bool _initialized = false;
 
 /// Loads the IANA database once so Cairo wall times stay correct across DST.
+/// Called centrally from `main()` before any screen builds; every formatter
+/// below also ensures it lazily, so no entry path can crash with
+/// `LocationNotFoundException`.
 void ensureCairoTime() {
   if (_initialized) return;
   tzdata.initializeTimeZones();
   _initialized = true;
 }
 
-tz.Location get _cairo => tz.getLocation('Africa/Cairo');
+tz.Location get _cairo {
+  ensureCairoTime();
+  return tz.getLocation('Africa/Cairo');
+}
 
 /// Cairo local date (`YYYY-MM-DD`) of [instant].
 String cairoDateOf(DateTime instant) {
