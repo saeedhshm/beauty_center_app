@@ -3,6 +3,8 @@ library;
 export 'src/address_api.dart';
 export 'src/availability_api.dart';
 export 'src/booking_api.dart';
+export 'src/booking_links.dart';
+export 'src/notification_api.dart';
 export 'src/payment_api.dart';
 export 'src/review_api.dart';
 export 'src/catalog_api.dart';

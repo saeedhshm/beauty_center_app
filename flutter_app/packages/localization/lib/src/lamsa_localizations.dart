@@ -550,6 +550,17 @@ class LamsaLocalizations {
       : 'No confirmed bookings right now.';
   String get customerAddress =>
       isArabic ? 'عنوان العميلة' : 'Customer address';
+  String get notifications => isArabic ? 'التنبيهات' : 'Notifications';
+  String get loadingNotifications => isArabic
+      ? 'جارٍ تحميل التنبيهات…'
+      : 'Loading notifications…';
+  String get unreadOnly => isArabic ? 'غير المقروء فقط' : 'Unread only';
+  String unreadCount(int count) =>
+      isArabic ? '$count غير مقروء' : '$count unread';
+  String get markAllRead =>
+      isArabic ? 'تحديد الكل كمقروء' : 'Mark all read';
+  String get noNotifications =>
+      isArabic ? 'لا توجد تنبيهات.' : 'No notifications.';
   String get loadingRequests => isArabic
       ? 'جارٍ تحميل الطلبات…'
       : 'Loading requests…';

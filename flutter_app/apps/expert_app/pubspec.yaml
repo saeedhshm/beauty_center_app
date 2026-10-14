@@ -24,6 +24,8 @@ dependencies:
     path: ../../packages/localization
   lamsa_networking:
     path: ../../packages/networking
+  lamsa_notifications:
+    path: ../../packages/notifications
 
 dev_dependencies:
   flutter_test:

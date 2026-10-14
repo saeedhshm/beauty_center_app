@@ -8,6 +8,7 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
+import 'package:lamsa_notifications/lamsa_notifications.dart';
 
 import 'customer_shell.dart';
 
@@ -65,6 +66,44 @@ final paymentApiProvider = Provider<PaymentGateway>(
 final reviewApiProvider = Provider<ReviewGateway>(
   (ref) => ReviewApi(ref.watch(authenticatedApiClientProvider)),
 );
+final notificationApiProvider = Provider<NotificationGateway>(
+  (ref) => NotificationApi(ref.watch(authenticatedApiClientProvider)),
+);
+
+final pushRegistrarProvider = Provider<PushRegistrar>(
+  (ref) {
+    final registrar = PushRegistrar(
+      provider: FirebasePushProvider(),
+      gateway: ref.watch(notificationApiProvider),
+    );
+    ref.onDispose(() async {
+      await registrar.dispose();
+    });
+    return registrar;
+  },
+);
+
+/// Bridges session transitions to the device-token lifecycle. Permission is
+/// requested only after a real login; logout removes the token best-effort.
+final pushSyncProvider = Provider<void>((ref) {
+  SessionPhase? previous;
+  void sync() {
+    final manager = ref.read(sessionManagerProvider);
+    final registrar = ref.read(pushRegistrarProvider);
+    final authenticated = manager.isAuthenticated;
+    if (authenticated && previous != SessionPhase.authenticated) {
+      unawaited(registrar.syncOnLogin());
+    } else if (!authenticated &&
+        previous == SessionPhase.authenticated) {
+      unawaited(registrar.syncOnLogout());
+    }
+    previous = manager.phase;
+  }
+
+  sync();
+  ref.listen(sessionManagerProvider, (_, _) => sync());
+});
+
 final availabilityApiProvider = Provider<AvailabilityGateway>(
   (ref) => AvailabilityApi(ref.watch(rawApiClientProvider)),
 );
@@ -117,6 +156,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           bookingApi: ref.read(bookingApiProvider),
           paymentApi: ref.read(paymentApiProvider),
           reviewApi: ref.read(reviewApiProvider),
+          notificationApi: ref.read(notificationApiProvider),
         ),
       ),
     ],
@@ -130,6 +170,7 @@ class CustomerApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(pushSyncProvider);
     final router = ref.watch(appRouterProvider);
     final network = ref.watch(networkStateProvider);
     return MaterialApp.router(

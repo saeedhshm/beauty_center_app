@@ -434,7 +434,16 @@ migrations وبيانات الاختبارات في المراجعة الحال�
 - **الملفات الأساسية**: `packages/catalog` (`review_api.dart` + `complete` في `booking_api` + اختباران)، `customer_app` (الإكمال والتقييم في `bookings_screen.dart` + 4 اختبارات)، `expert_app` (قسم المؤكدة وورقة التنفيذ في `requests_screen.dart` + اختباران)، `localization` (نصوص A7).
 - **APIs الحقيقية**: `POST /bookings/:id/complete` و`POST /bookings/:id/reviews` و`GET /bookings/:id/reviews` — بلا تغيير Backend. fakes للويدجت فقط؛ القواعد الحقيقية مُغطاة باختبارات Backend (`reviews`/`scheduling-bookings`). الاختبارات كشفت إصلاحًا (SnackBar المتراكمة تحجب التالية — `hideCurrentSnackBar` قبل كل رسالة لاحقة).
 - **التحقق**: customer analyze نظيف وtest 36/36؛ expert analyze نظيف وtest 17/17؛ catalog 26/26؛ localization 3/3؛ networking 9/9 (بلا تغيير)؛ `git diff --check` نظيف.
-- **المتبقي**: A8 (الإشعارات والروابط العميقة) — بوابة القرار إلزامية: لا مزود Push ولا domains معتمدة. لا production-ready ولا deploy.
+- **المتبقي**: A8 (الإشعارات والروابط العميقة) — نفذت جزئيًا أدناه (partial) بانتظار ملفات إعداد Firebase. لا production-ready ولا deploy.
+
+## تطبيقات الهاتف — A8: الإشعارات والروابط العميقة (partial — 2026-10-14)
+
+- **بوابة القرار**: لا مزود Push معتمد ولا Firebase/APNs ولا domains في المستودع (entitlements للمفاتيح فقط). اختار المستخدم «أضف Firebase الآن» — أُضيفت الاعتماديات والكود دون اختراع أي ملفات إعداد أو مفاتيح.
+- **المنفذ والقابل للإثبات**: حزمة `packages/notifications` الجديدة — `PushProvider` المجرد، و`FirebasePushProvider` (يتدهور بصمت بلا إعداد فتعمل التطبيقات دون دفع فوري)، و`PushRegistrar` (تسجيل التوكن عند الدخول عبر `POST /devices` الحقيقي، وإعادة التسجيل عند rotation، وحذف محلي + `DELETE /devices/:id` عند الخروج) مربوط بانتقالات الجلسة في التطبيقين؛ مركز التنبيهات داخل التطبيقين ضد API الحقيقي (قائمة + فلتر غير المقروء + عدّاد + تحديد الكل كمقروء + فتح الحجز بجلب جديد / تسليم لتبويب الطلبات)؛ موجه روابط داخلي `lamsa://booking/<uuid>` يرفض أي شكل آخر ولا يغير حالة من payload (الملكية للخادم 404).
+- **المحجوب حتى ملفات الإعداد**: استلام push الفوري (foreground/background/terminated) و`google-services.json` و`GoogleService-Info.plist` ومفتاح APNs وdomains — تُطلب من المستخدم من وحدة تحكم Firebase، ولا تُخترع. البناءات الأصلية الأربعة نجحت مع الاعتماديات الجديدة.
+- **الملفات الأساسية**: `packages/notifications` (حزمة + 5 اختبارات)، `packages/catalog` (`notification_api.dart` و`booking_links.dart` + 4 اختبارات)، التطبيقان (شاشتا التنبيهات + اختباران لكل، وربط المُسجّل، و`pubspec`/`Podfile.lock`/`pbxproj` المترتبة على Firebase).
+- **التحقق**: customer analyze نظيف وtest 38/38؛ expert analyze نظيف وtest 19/19؛ catalog 30/30؛ notifications 5/5؛ localization 3/3؛ builds الأربعة (APK+iOS simulator للتطبيقين) ناجحة؛ `git diff --check` نظيف.
+- **المتبقي**: A9 (المستحقات) — تُنفذ بعد A8-partial. لا production-ready ولا deploy.
 
 ## توحيد أيقونة لمسة (2026-10-12)
 

@@ -1,0 +1,21 @@
+name: lamsa_notifications
+description: تسجيل Device Token وتنسيق الإشعارات لتطبيقات لمسة
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.11.0
+  flutter: '>=3.41.0'
+
+dependencies:
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+  flutter:
+    sdk: flutter
+  lamsa_catalog:
+    path: ../catalog
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

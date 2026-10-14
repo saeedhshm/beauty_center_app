@@ -5,6 +5,7 @@ import 'package:lamsa_localization/lamsa_localization.dart';
 
 import 'addresses_screen.dart';
 import 'bookings_screen.dart';
+import 'notifications_screen.dart';
 import 'catalog_screen.dart';
 
 class CustomerShell extends StatefulWidget {
@@ -17,6 +18,7 @@ class CustomerShell extends StatefulWidget {
     required this.bookingApi,
     required this.paymentApi,
     required this.reviewApi,
+    required this.notificationApi,
     super.key,
   });
 
@@ -28,6 +30,7 @@ class CustomerShell extends StatefulWidget {
   final BookingGateway bookingApi;
   final PaymentGateway paymentApi;
   final ReviewGateway reviewApi;
+  final NotificationGateway notificationApi;
 
   @override
   State<CustomerShell> createState() => _CustomerShellState();
@@ -55,6 +58,11 @@ class _CustomerShellState extends State<CustomerShell> {
         label: context.lamsa.myBookings,
       ),
       NavigationDestination(
+        icon: const Icon(Icons.notifications_outlined),
+        selectedIcon: const Icon(Icons.notifications),
+        label: context.lamsa.notifications,
+      ),
+      NavigationDestination(
         icon: const Icon(Icons.person_outline),
         selectedIcon: const Icon(Icons.person),
         label: context.lamsa.account,
@@ -75,6 +83,13 @@ class _CustomerShellState extends State<CustomerShell> {
         catalogGateway: widget.catalogApi,
       ),
       CustomerBookingsScreen(
+        bookings: widget.bookingApi,
+        payments: widget.paymentApi,
+        reviews: widget.reviewApi,
+        currentUserId: widget.manager.user?.id,
+      ),
+      CustomerNotificationsScreen(
+        notifications: widget.notificationApi,
         bookings: widget.bookingApi,
         payments: widget.paymentApi,
         reviews: widget.reviewApi,
