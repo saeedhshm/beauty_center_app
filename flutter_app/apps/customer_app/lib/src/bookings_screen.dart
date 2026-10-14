@@ -5,7 +5,6 @@ import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 import 'package:uuid/uuid.dart';
 
-import 'cairo_slot_time.dart';
 
 const _visibleStatuses = [
   'pending',
@@ -231,7 +230,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
                   '${context.lamsa.bookingStatusName(booking.status)} · ${booking.totalAmount} ${booking.currency}',
                 ),
                 subtitle: Text(
-                  '${cairoDateOf(DateTime.parse(booking.startsAt))} · ${cairoClockOf(booking.startsAt)}',
+                  formatBookingDateTime(booking.startsAt, booking.timeZone),
                   textDirection: TextDirection.ltr,
                 ),
                 trailing: const Icon(Icons.chevron_left),
@@ -594,7 +593,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                     ),
                     _row(
                       context.lamsa.appointmentTime,
-                      '${cairoDateOf(DateTime.parse(_booking!.startsAt))} · ${cairoClockOf(_booking!.startsAt)} – ${cairoClockOf(_booking!.endsAt)}',
+                      '${formatBookingDateTime(_booking!.startsAt, _booking!.timeZone)} – ${formatBookingTime(_booking!.endsAt, _booking!.timeZone)}',
                     ),
                     _row(
                       context.lamsa.totalAmount,
@@ -608,7 +607,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                         (_booking!.isPending || _booking!.isAccepted))
                       _row(
                         context.lamsa.pendingExpiry,
-                        cairoClockOf(_booking!.expiresAt!),
+                        formatBookingTime(_booking!.expiresAt!, _booking!.timeZone),
                       ),
                     if (_booking!.notes != null &&
                         _booking!.notes!.isNotEmpty)
@@ -631,7 +630,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                         title: Text(
                           context.lamsa.bookingStatusName(entry.status),
                         ),
-                        subtitle: Text(entry.changedAt),
+                        subtitle: Text(
+                          formatBookingDateTime(
+                            entry.changedAt,
+                            _booking!.timeZone,
+                          ),
+                        ),
                       ),
                     if (_booking!.isPending || _booking!.isAccepted) ...[
                       const SizedBox(height: 12),

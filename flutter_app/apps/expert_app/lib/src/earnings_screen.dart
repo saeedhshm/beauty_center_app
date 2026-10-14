@@ -395,7 +395,12 @@ class _PayoutSheetState extends State<_PayoutSheet> {
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.right,
                   ),
-                  subtitle: Text(booking.startsAt),
+                  subtitle: Text(
+                    formatBookingDateTime(
+                      booking.startsAt,
+                      booking.timeZone,
+                    ),
+                  ),
                 ),
             ],
           ],

@@ -7,7 +7,6 @@ import 'package:lamsa_networking/lamsa_networking.dart';
 import 'package:uuid/uuid.dart';
 
 import 'bookings_screen.dart';
-import 'cairo_slot_time.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({

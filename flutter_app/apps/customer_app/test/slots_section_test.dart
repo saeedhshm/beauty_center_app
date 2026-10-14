@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamsa_catalog/lamsa_catalog.dart';
-import 'package:lamsa_customer/src/cairo_slot_time.dart';
 import 'package:lamsa_customer/src/catalog_screen.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';

@@ -104,6 +104,7 @@ class _EarningGateway implements EarningGateway {
         'status': 'completed',
         'startsAt': '2026-10-20T07:00:00.000Z',
         'endsAt': '2026-10-20T08:00:00.000Z',
+        'timeZone': 'Africa/Cairo',
         'totalAmount': '300.50',
         'expertEarning': '240.40',
         'currency': 'EGP',

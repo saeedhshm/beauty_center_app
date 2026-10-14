@@ -290,7 +290,10 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      booking.startsAt,
+                      formatBookingDateTime(
+                        booking.startsAt,
+                        booking.timeZone,
+                      ),
                       textDirection: TextDirection.ltr,
                       textAlign: TextAlign.right,
                     ),
@@ -360,7 +363,10 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
                   '${booking.totalAmount} ${booking.currency}',
                 ),
                 subtitle: Text(
-                  booking.startsAt,
+                  formatBookingDateTime(
+                    booking.startsAt,
+                    booking.timeZone,
+                  ),
                   textDirection: TextDirection.ltr,
                 ),
                 trailing: kind == _SectionKind.confirmed
@@ -629,7 +635,10 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                _booking.startsAt,
+                formatBookingDateTime(
+                  _booking.startsAt,
+                  _booking.timeZone,
+                ),
                 textDirection: TextDirection.ltr,
                 textAlign: TextAlign.right,
               ),

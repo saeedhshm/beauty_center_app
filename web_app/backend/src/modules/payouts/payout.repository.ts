@@ -76,6 +76,7 @@ export class PayoutRepository {
   payoutBookings(payoutId: string) {
     return this.db.select({
       id: bookings.id, status: bookings.status, startsAt: bookings.startsAt, endsAt: bookings.endsAt,
+      timeZone: bookings.timeZone,
       totalAmount: bookings.totalAmount, expertEarning: bookings.expertEarning, currency: bookings.currency,
     }).from(bookings).where(eq(bookings.payoutId, payoutId)).orderBy(asc(bookings.startsAt), asc(bookings.id));
   }

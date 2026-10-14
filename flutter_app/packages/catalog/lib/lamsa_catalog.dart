@@ -4,6 +4,7 @@ export 'src/address_api.dart';
 export 'src/availability_api.dart';
 export 'src/booking_api.dart';
 export 'src/booking_links.dart';
+export 'src/booking_time.dart';
 export 'src/earning_api.dart';
 export 'src/notification_api.dart';
 export 'src/payment_api.dart';

@@ -78,6 +78,54 @@ void main() {
 
     expect(find.text('ملغي'), findsOneWidget);
     expect(find.textContaining('ظرف طارئ'), findsOneWidget);
+    // History instants render in the booking snapshot zone, not raw.
+    expect(find.textContaining('2026-10-14T06:00'), findsNothing);
+  });
+
+  testWidgets('historic Riyadh booking keeps its snapshot zone', (
+    tester,
+  ) async {
+    final gateway = _BookingGateway(
+      status: 'completed',
+      timeZone: 'Asia/Riyadh',
+      startsAt: '2026-01-15T10:00:00.000Z',
+      endsAt: '2026-01-15T11:00:00.000Z',
+    );
+    await tester.pumpWidget(
+      _app(
+        ExpertBookingDetailScreen(
+          bookings: gateway,
+          bookingId: _bookingId(8),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 10:00Z reads 13:00 in Riyadh (UTC+3), not 12:00 as Cairo would show.
+    expect(find.textContaining('13:00'), findsWidgets);
+    expect(find.textContaining('12:00'), findsNothing);
+    expect(find.textContaining('2026-01-15T10:00'), findsNothing);
+  });
+
+  testWidgets('no raw ISO instants leak onto the expert screen', (
+    tester,
+  ) async {
+    final gateway = _BookingGateway(status: 'confirmed');
+    await tester.pumpWidget(
+      _app(
+        ExpertBookingDetailScreen(
+          bookings: gateway,
+          bookingId: _bookingId(9),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('مؤكد'), findsOneWidget);
+    expect(find.textContaining('T07:00:00'), findsNothing);
+    expect(find.textContaining('T06:0'), findsNothing);
+    // Summer Cairo wall time (+3) renders instead of the stored UTC.
+    expect(find.textContaining('10:00'), findsWidgets);
   });
 
   testWidgets('unowned booking shows a safe not-found message', (
@@ -169,15 +217,18 @@ Booking _booking({
   required String id,
   required String status,
   String? cancellationReason,
+  String timeZone = 'Africa/Cairo',
+  String startsAt = '2026-10-20T07:00:00.000Z',
+  String endsAt = '2026-10-20T08:00:00.000Z',
 }) => Booking(
   id: id,
   customerId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
   expertId: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
   serviceId: 7,
   status: status,
-  startsAt: '2026-10-20T07:00:00.000Z',
-  endsAt: '2026-10-20T08:00:00.000Z',
-  timeZone: 'Africa/Cairo',
+  startsAt: startsAt,
+  endsAt: endsAt,
+  timeZone: timeZone,
   expiresAt: null,
   addressText: '12 شارع التحرير، القاهرة',
   cityId: 1,
@@ -207,11 +258,21 @@ Booking _booking({
 );
 
 class _BookingGateway implements BookingGateway {
-  _BookingGateway({this.status = 'pending', this.cancellationReason, this.failure});
+  _BookingGateway({
+    this.status = 'pending',
+    this.cancellationReason,
+    this.failure,
+    this.timeZone = 'Africa/Cairo',
+    this.startsAt = '2026-10-20T07:00:00.000Z',
+    this.endsAt = '2026-10-20T08:00:00.000Z',
+  });
 
   final String status;
   final String? cancellationReason;
   final ApiFailure? failure;
+  final String timeZone;
+  final String startsAt;
+  final String endsAt;
   final fetched = <String>[];
 
   @override
@@ -219,7 +280,14 @@ class _BookingGateway implements BookingGateway {
     fetched.add(id);
     final failure = this.failure;
     if (failure != null) throw failure;
-    return _booking(id: id, status: status, cancellationReason: cancellationReason);
+    return _booking(
+      id: id,
+      status: status,
+      cancellationReason: cancellationReason,
+      timeZone: timeZone,
+      startsAt: startsAt,
+      endsAt: endsAt,
+    );
   }
 
   @override

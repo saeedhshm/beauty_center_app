@@ -9,6 +9,7 @@ environment:
 dependencies:
   lamsa_networking:
     path: ../networking
+  timezone: ^0.10.1
 
 dev_dependencies:
   dio: ^5.9.2

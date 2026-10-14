@@ -74,8 +74,20 @@ class _ExpertBookingDetailScreenState extends State<ExpertBookingDetailScreen> {
                       context.lamsa.totalAmount,
                       '${_booking!.totalAmount} ${_booking!.currency}',
                     ),
-                    _row(context.lamsa.startTime, _booking!.startsAt),
-                    _row(context.lamsa.endTime, _booking!.endsAt),
+                    _row(
+                      context.lamsa.startTime,
+                      formatBookingDateTime(
+                        _booking!.startsAt,
+                        _booking!.timeZone,
+                      ),
+                    ),
+                    _row(
+                      context.lamsa.endTime,
+                      formatBookingDateTime(
+                        _booking!.endsAt,
+                        _booking!.timeZone,
+                      ),
+                    ),
                     _row(
                       context.lamsa.customerAddress,
                       _booking!.addressText,
@@ -101,7 +113,12 @@ class _ExpertBookingDetailScreenState extends State<ExpertBookingDetailScreen> {
                         title: Text(
                           context.lamsa.bookingStatusName(entry.status),
                         ),
-                        subtitle: Text(entry.changedAt),
+                        subtitle: Text(
+                          formatBookingDateTime(
+                            entry.changedAt,
+                            _booking!.timeZone,
+                          ),
+                        ),
                       ),
                   ],
                 ),

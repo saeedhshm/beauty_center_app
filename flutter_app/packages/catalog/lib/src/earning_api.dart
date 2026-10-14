@@ -105,6 +105,7 @@ class PayoutBooking {
     required this.status,
     required this.startsAt,
     required this.endsAt,
+    required this.timeZone,
     required this.totalAmount,
     required this.expertEarning,
     required this.currency,
@@ -114,6 +115,7 @@ class PayoutBooking {
   final String status;
   final String startsAt;
   final String endsAt;
+  final String timeZone;
   final String totalAmount;
   final String expertEarning;
   final String currency;
@@ -132,6 +134,7 @@ class PayoutBooking {
       status: requiredString('status'),
       startsAt: json['startsAt'].toString(),
       endsAt: json['endsAt'].toString(),
+      timeZone: requiredString('timeZone'),
       totalAmount: requiredString('totalAmount'),
       expertEarning: requiredString('expertEarning'),
       currency: requiredString('currency'),
