@@ -443,7 +443,15 @@ migrations وبيانات الاختبارات في المراجعة الحال�
 - **المحجوب حتى ملفات الإعداد**: استلام push الفوري (foreground/background/terminated) و`google-services.json` و`GoogleService-Info.plist` ومفتاح APNs وdomains — تُطلب من المستخدم من وحدة تحكم Firebase، ولا تُخترع. البناءات الأصلية الأربعة نجحت مع الاعتماديات الجديدة.
 - **الملفات الأساسية**: `packages/notifications` (حزمة + 5 اختبارات)، `packages/catalog` (`notification_api.dart` و`booking_links.dart` + 4 اختبارات)، التطبيقان (شاشتا التنبيهات + اختباران لكل، وربط المُسجّل، و`pubspec`/`Podfile.lock`/`pbxproj` المترتبة على Firebase).
 - **التحقق**: customer analyze نظيف وtest 38/38؛ expert analyze نظيف وtest 19/19؛ catalog 30/30؛ notifications 5/5؛ localization 3/3؛ builds الأربعة (APK+iOS simulator للتطبيقين) ناجحة؛ `git diff --check` نظيف.
-- **المتبقي**: A9 (المستحقات) — تُنفذ بعد A8-partial. لا production-ready ولا deploy.
+- **المتبقي**: A9 (المستحقات) — نفذت أدناه. لا production-ready ولا deploy.
+
+## تطبيقات الهاتف — A9: مستحقات الخبيرة والتحويلات (2026-10-14)
+
+- **السلوك المنفذ**: تبويب سابع «المستحقات» للقراءة فقط — بطاقات المؤهل الآن والمسجل والمحول لكل عملة كما يعيدها الخادم (سلاسل عشرية بلا أي حساب محلي)، وقائمة التحويلات بفلاتر الكل/مسجل/محول وpagination وسحب للتحديث، وورقة تفاصيل التحويل (المبلغ والمرجع والحجوزات المرتبطة بأرباحها) مع تنبيه أن المسجل إجراء إداري لا تحويل مصرفي حقيقي إلا بتأكيد التنفيذ. التحديث عند الاستئناف والعودة. لا تعديل للتاريخ المالي ولا بدء تحويل ولا Wallet.
+- **الملفات الأساسية**: `packages/catalog` (`earning_api.dart` + اختباران)، `expert_app` (`earnings_screen.dart` + 3 اختبارات + تبويب سابع)، `localization` (نصوص A9).
+- **APIs الحقيقية**: `GET /experts/me/earnings` و`GET /experts/me/payouts` و`GET /experts/me/payouts/:id` — بلا تغيير Backend. الملكية والخصوصية خادميًا (404 لغير المالكة) ومُغطاة باختبارات Backend (`payouts.test.ts`)؛ اختبارات الويدجت بـfakes للعرض فقط.
+- **التحقق**: expert analyze نظيف وtest 22/22؛ catalog 32/32؛ localization 3/3؛ `git diff --check` نظيف.
+- **المتبقي**: A10 (التقوية والاستعداد) — بلا staging ولا signing حقيقي. لا production-ready ولا deploy.
 
 ## توحيد أيقونة لمسة (2026-10-12)
 

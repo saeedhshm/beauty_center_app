@@ -69,6 +69,9 @@ final reviewApiProvider = Provider<ReviewGateway>(
 final notificationApiProvider = Provider<NotificationGateway>(
   (ref) => NotificationApi(ref.watch(authenticatedApiClientProvider)),
 );
+final earningApiProvider = Provider<EarningGateway>(
+  (ref) => EarningApi(ref.watch(authenticatedApiClientProvider)),
+);
 
 final pushRegistrarProvider = Provider<PushRegistrar>(
   (ref) {
@@ -155,6 +158,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           bookingApi: ref.read(bookingApiProvider),
           reviewApi: ref.read(reviewApiProvider),
           notificationApi: ref.read(notificationApiProvider),
+          earningApi: ref.read(earningApiProvider),
         ),
       ),
     ],

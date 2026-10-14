@@ -5,6 +5,7 @@ import 'package:lamsa_localization/lamsa_localization.dart';
 
 import 'availability_screen.dart';
 import 'expert_profile_screen.dart';
+import 'earnings_screen.dart';
 import 'notifications_screen.dart';
 import 'requests_screen.dart';
 import 'portfolio_screen.dart';
@@ -20,6 +21,7 @@ class ExpertWorkspaceShell extends StatefulWidget {
     required this.bookingApi,
     required this.reviewApi,
     required this.notificationApi,
+    required this.earningApi,
     super.key,
   });
 
@@ -31,6 +33,7 @@ class ExpertWorkspaceShell extends StatefulWidget {
   final BookingGateway bookingApi;
   final ReviewGateway reviewApi;
   final NotificationGateway notificationApi;
+  final EarningGateway earningApi;
 
   @override
   State<ExpertWorkspaceShell> createState() => _ExpertWorkspaceShellState();
@@ -92,6 +95,11 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
         selectedIcon: const Icon(Icons.notifications),
         label: context.lamsa.notifications,
       ),
+      NavigationDestination(
+        icon: const Icon(Icons.account_balance_wallet_outlined),
+        selectedIcon: const Icon(Icons.account_balance_wallet),
+        label: context.lamsa.earnings,
+      ),
     ];
     final pages = [
       ExpertProfileScreen(
@@ -123,6 +131,10 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
       ExpertNotificationsScreen(
         notifications: widget.notificationApi,
         onOpenRequests: () => _select(4),
+        refreshSignal: _refreshSignal,
+      ),
+      ExpertEarningsScreen(
+        earnings: widget.earningApi,
         refreshSignal: _refreshSignal,
       ),
     ];

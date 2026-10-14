@@ -561,6 +561,24 @@ class LamsaLocalizations {
       isArabic ? 'تحديد الكل كمقروء' : 'Mark all read';
   String get noNotifications =>
       isArabic ? 'لا توجد تنبيهات.' : 'No notifications.';
+  String get earnings => isArabic ? 'المستحقات' : 'Earnings';
+  String get loadingEarnings =>
+      isArabic ? 'جارٍ تحميل المستحقات…' : 'Loading earnings…';
+  String get eligibleAmount => isArabic ? 'مؤهل الآن' : 'Eligible now';
+  String get recordedAmount => isArabic ? 'مسجل' : 'Recorded';
+  String get transferredAmount => isArabic ? 'محول' : 'Transferred';
+  String get transfers => isArabic ? 'التحويلات' : 'Transfers';
+  String get noTransfers =>
+      isArabic ? 'لا توجد تحويلات بعد.' : 'No transfers yet.';
+  String get transferRecorded => isArabic ? 'مسجل' : 'Recorded';
+  String get transferDone => isArabic ? 'محول' : 'Transferred';
+  String get transferRef => isArabic ? 'مرجع التحويل' : 'Transfer reference';
+  String get linkedBookings =>
+      isArabic ? 'الحجوزات المرتبطة' : 'Linked bookings';
+  String get manualTransferNote => isArabic
+      ? 'التحويل المسجل إجراء إداري؛ لا يعد تحويلًا مصرفيًا حقيقيًا إلا إذا أكده التنفيذ.'
+      : 'A recorded transfer is administrative until execution confirms it.';
+  String get allTransfers => isArabic ? 'الكل' : 'All';
   String get loadingRequests => isArabic
       ? 'جارٍ تحميل الطلبات…'
       : 'Loading requests…';
