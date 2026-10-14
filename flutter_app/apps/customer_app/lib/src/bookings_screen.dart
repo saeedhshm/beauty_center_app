@@ -22,12 +22,16 @@ class CustomerBookingsScreen extends StatefulWidget {
   const CustomerBookingsScreen({
     required this.bookings,
     required this.payments,
+    required this.reviews,
+    this.currentUserId,
     this.refreshSignal,
     super.key,
   });
 
   final BookingGateway bookings;
   final PaymentGateway payments;
+  final ReviewGateway reviews;
+  final String? currentUserId;
   final Listenable? refreshSignal;
 
   @override
@@ -215,6 +219,8 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
                       builder: (_) => BookingDetailScreen(
                         bookings: widget.bookings,
                         payments: widget.payments,
+                        reviews: widget.reviews,
+                        currentUserId: widget.currentUserId,
                         bookingId: booking.id,
                       ),
                     ),
@@ -243,12 +249,16 @@ class BookingDetailScreen extends StatefulWidget {
   const BookingDetailScreen({
     required this.bookings,
     required this.payments,
+    required this.reviews,
+    this.currentUserId,
     required this.bookingId,
     super.key,
   });
 
   final BookingGateway bookings;
   final PaymentGateway payments;
+  final ReviewGateway reviews;
+  final String? currentUserId;
   final String bookingId;
 
   @override
@@ -262,6 +272,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
   bool _cancelling = false;
   List<BookingPayment> _attempts = const [];
   bool _paying = false;
+  List<BookingReview> _reviews = const [];
+  bool _completing = false;
+  int _rating = 5;
+  String _comment = '';
+  bool _submittingReview = false;
 
   @override
   void initState() {
@@ -294,8 +309,102 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
       } on Object {
         // Attempts are auxiliary; the booking still renders without them.
       }
+      try {
+        final reviews = await widget.reviews.forBooking(widget.bookingId);
+        if (mounted) setState(() => _reviews = reviews);
+      } on Object {
+        // Reviews are auxiliary; the booking still renders without them.
+      }
     } catch (error) {
       if (mounted) setState(() => _error = error);
+    }
+  }
+
+  Future<void> _complete() async {
+    final booking = _booking;
+    if (booking == null || _completing || !mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(dialogContext.lamsa.completeBooking),
+        content: Text(dialogContext.lamsa.completeBookingConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.lamsa.cancel),
+          ),
+          FilledButton(
+            key: const ValueKey('complete-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(dialogContext.lamsa.completeBooking),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _completing = true);
+    try {
+      await widget.bookings.complete(booking.id);
+      if (!mounted) return;
+      setState(() => _completing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.lamsa.bookingCompleted)),
+      );
+      await _load();
+    } on ApiFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _completing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failure.kind == ApiFailureKind.conflict
+                ? context.lamsa.bookingStateChanged
+                : failure.message,
+          ),
+        ),
+      );
+      await _load();
+    } on Object {
+      if (mounted) setState(() => _completing = false);
+    }
+  }
+
+  Future<void> _submitReview() async {
+    if (_submittingReview || !mounted) return;
+    setState(() => _submittingReview = true);
+    try {
+      await widget.reviews.submit(
+        widget.bookingId,
+        rating: _rating,
+        comment: _comment.isEmpty ? null : _comment,
+      );
+      if (!mounted) return;
+      setState(() => _submittingReview = false);
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(content: Text(context.lamsa.reviewSubmitted)),
+      );
+      await _load();
+    } on ApiFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _submittingReview = false);
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            failure.code == 'DUPLICATE_REVIEW'
+                ? context.lamsa.alreadyReviewed
+                : failure.kind == ApiFailureKind.conflict
+                ? context.lamsa.bookingStateChanged
+                : failure.message,
+          ),
+        ),
+      );
+      await _load();
+    } on Object {
+      if (mounted) setState(() => _submittingReview = false);
     }
   }
 
@@ -518,6 +627,33 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                       onPay: _startPayment,
                       onRefresh: _load,
                     ),
+                    if (_booking!.status == 'confirmed') ...[
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        key: const ValueKey('booking-complete'),
+                        onPressed: _completing ? null : _complete,
+                        child: Text(
+                          _completing
+                              ? context.lamsa.sending
+                              : context.lamsa.completeBooking,
+                        ),
+                      ),
+                    ],
+                    if (_booking!.status == 'completed') ...[
+                      const SizedBox(height: 12),
+                      _ReviewSection(
+                        reviews: _reviews,
+                        currentUserId: widget.currentUserId,
+                        rating: _rating,
+                        submitting: _submittingReview,
+                        onRatingChanged: (value) =>
+                            setState(() => _rating = value),
+                        onCommentChanged: (value) =>
+                            setState(() => _comment = value),
+                        onSubmit: _submitReview,
+                        onRefresh: _load,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -714,4 +850,110 @@ class _DemoPaymentSheet extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// Review section of a completed booking. Shows both parties' reviews when
+/// present and offers the form only while the current user has not reviewed.
+class _ReviewSection extends StatelessWidget {
+  const _ReviewSection({
+    required this.reviews,
+    required this.currentUserId,
+    required this.rating,
+    required this.submitting,
+    required this.onRatingChanged,
+    required this.onCommentChanged,
+    required this.onSubmit,
+    required this.onRefresh,
+  });
+
+  final List<BookingReview> reviews;
+  final String? currentUserId;
+  final int rating;
+  final bool submitting;
+  final ValueChanged<int> onRatingChanged;
+  final ValueChanged<String> onCommentChanged;
+  final VoidCallback onSubmit;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final mine = currentUserId == null
+        ? null
+        : reviews
+              .where((item) => item.reviewerId == currentUserId)
+              .firstOrNull;
+    final other = currentUserId == null
+        ? null
+        : reviews
+              .where((item) => item.reviewerId != currentUserId)
+              .firstOrNull;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.lamsa.rateExperience,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        if (mine != null)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text(
+              '${context.lamsa.myReview}: ${'★' * mine.rating}${'☆' * (5 - mine.rating)}',
+            ),
+            subtitle: mine.comment != null && mine.comment!.isNotEmpty
+                ? Text(mine.comment!)
+                : null,
+          ),
+        if (other != null)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text(
+              '${context.lamsa.otherPartyReview}: ${'★' * other.rating}${'☆' * (5 - other.rating)}',
+            ),
+            subtitle: other.comment != null && other.comment!.isNotEmpty
+                ? Text(other.comment!)
+                : null,
+          ),
+        if (mine == null) ...[
+          const SizedBox(height: 8),
+          Text(context.lamsa.ratingStars),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var star = 1; star <= 5; star++)
+                IconButton(
+                  key: ValueKey('review-star-$star'),
+                  tooltip: '$star',
+                  onPressed: submitting ? null : () => onRatingChanged(star),
+                  icon: Icon(
+                    star <= rating ? Icons.star : Icons.star_border,
+                    color: star <= rating ? LamsaColors.berry : null,
+                  ),
+                ),
+            ],
+          ),
+          TextField(
+            key: const ValueKey('review-comment'),
+            decoration: InputDecoration(
+              labelText: context.lamsa.commentOptional,
+            ),
+            maxLength: 1000,
+            maxLines: 3,
+            onChanged: onCommentChanged,
+          ),
+          const SizedBox(height: 8),
+          FilledButton(
+            key: const ValueKey('review-submit'),
+            onPressed: submitting ? null : onSubmit,
+            child: Text(
+              submitting ? context.lamsa.sending : context.lamsa.submitReview,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }

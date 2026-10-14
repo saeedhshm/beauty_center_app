@@ -162,6 +162,7 @@ abstract interface class BookingGateway {
   Future<Booking> accept(String id);
   Future<Booking> reject(String id, {String? reason});
   Future<Booking> cancel(String id, {String? reason});
+  Future<Booking> complete(String id);
 }
 
 class BookingApi implements BookingGateway {
@@ -247,6 +248,15 @@ class BookingApi implements BookingGateway {
     final body = await _client.post<JsonObject>(
       '/api/v1/bookings/$id/cancel',
       data: {if (reason != null && reason.isNotEmpty) 'reason': reason},
+      authenticated: true,
+    );
+    return _booking(body['data']);
+  }
+
+  @override
+  Future<Booking> complete(String id) async {
+    final body = await _client.post<JsonObject>(
+      '/api/v1/bookings/$id/complete',
       authenticated: true,
     );
     return _booking(body['data']);

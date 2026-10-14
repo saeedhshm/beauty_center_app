@@ -62,6 +62,9 @@ final availabilityApiProvider = Provider<AvailabilityGateway>(
 final bookingApiProvider = Provider<BookingGateway>(
   (ref) => BookingApi(ref.watch(authenticatedApiClientProvider)),
 );
+final reviewApiProvider = Provider<ReviewGateway>(
+  (ref) => ReviewApi(ref.watch(authenticatedApiClientProvider)),
+);
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionManagerProvider);
@@ -111,6 +114,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           catalogApi: ref.read(catalogApiProvider),
           availabilityApi: ref.read(availabilityApiProvider),
           bookingApi: ref.read(bookingApiProvider),
+          reviewApi: ref.read(reviewApiProvider),
         ),
       ),
     ],

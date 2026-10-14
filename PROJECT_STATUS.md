@@ -424,7 +424,17 @@ migrations وبيانات الاختبارات في المراجعة الحال�
 - **الملفات الأساسية**: `packages/catalog` (`payment_api.dart` + 3 اختبارات)، `networking` (رأس مخصص في `post`)، `customer_app` (قسم الدفع وورقة Demo في `bookings_screen.dart` + `paymentApiProvider` + 6 اختبارات تدفق)، `expert_app` (قسم المقبول + اختبار)، `localization` (نصوص A6).
 - **APIs الحقيقية**: `POST /bookings/:id/payments` و`GET /bookings/:id/payments` و`POST /webhooks/payments/demo` — بلا تغيير Backend. التكرار والنجاح المتأخر وعدم تضارب الأثر مُغطاة باختبارات Backend (`payments.test.ts`)؛ اختبارات الويدجت بـfakes للسلوك الأمامي فقط.
 - **التحقق**: customer analyze نظيف وtest 32/32؛ expert analyze نظيف وtest 15/15؛ catalog 24/24؛ networking 9/9؛ localization 3/3؛ `git diff --check` نظيف.
-- **المتبقي**: A7 (الإكمال والتقييم). لا production-ready ولا deploy.
+- **المتبقي**: A7 (الإكمال والتقييم) — نفذت أدناه. لا production-ready ولا deploy.
+
+## تطبيقات الهاتف — A7: الإكمال والتقييم (2026-10-14)
+
+- **السلوك المنفذ (عميلة)**: زر «تأكيد الإكمال» في تفاصيل الحجز المؤكد فقط (بتأكيد، ويعيد التحميل؛ 409 يعرض الحالة الحالية)؛ قسم التقييم للمكتمل فقط — نجوم 1–5 وتعليق حتى 1000 حرف، يعرض تقييمك وتقييم الطرف الآخر، والنموذج يظهر فقط قبل تقييمك؛ `DUPLICATE_REVIEW` برسالة مخصصة مع إعادة تحميل. لا تقييم قبل الإكمال (النموذج غير معروض أصلًا).
+- **السلوك المنفذ (خبيرة)**: قسم «مؤكدة وقيد التنفيذ» للقراءة مع ورقة تنفيذ تعرض عنوان العميلة (مكشوف للطرف خادميًا حسب السياسة الحالية — وُثق كقرار)، وزر الإكمال المعتمد، ثم تقييم العميلة بعد الإكمال في الورقة نفسها؛ الطرف الثالث يرده الخادم 404 دون تسريب. لا `on_the_way` ولا `in_progress`.
+- **القرارات**: الإكمال من `confirmed` فقط لأي طرف؛ التقييم بعد `completed` وللطرفين (متبادل مدعوم) مرة واحدة لكل طرف؛ كشف العنوان للخبيرة = سياسة الخادم الحالية (DTO الطرف الكامل).
+- **الملفات الأساسية**: `packages/catalog` (`review_api.dart` + `complete` في `booking_api` + اختباران)، `customer_app` (الإكمال والتقييم في `bookings_screen.dart` + 4 اختبارات)، `expert_app` (قسم المؤكدة وورقة التنفيذ في `requests_screen.dart` + اختباران)، `localization` (نصوص A7).
+- **APIs الحقيقية**: `POST /bookings/:id/complete` و`POST /bookings/:id/reviews` و`GET /bookings/:id/reviews` — بلا تغيير Backend. fakes للويدجت فقط؛ القواعد الحقيقية مُغطاة باختبارات Backend (`reviews`/`scheduling-bookings`). الاختبارات كشفت إصلاحًا (SnackBar المتراكمة تحجب التالية — `hideCurrentSnackBar` قبل كل رسالة لاحقة).
+- **التحقق**: customer analyze نظيف وtest 36/36؛ expert analyze نظيف وtest 17/17؛ catalog 26/26؛ localization 3/3؛ networking 9/9 (بلا تغيير)؛ `git diff --check` نظيف.
+- **المتبقي**: A8 (الإشعارات والروابط العميقة) — بوابة القرار إلزامية: لا مزود Push ولا domains معتمدة. لا production-ready ولا deploy.
 
 ## توحيد أيقونة لمسة (2026-10-12)
 

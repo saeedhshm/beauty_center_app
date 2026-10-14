@@ -517,6 +517,39 @@ class LamsaLocalizations {
   String get lateSuccessMessage => isArabic
       ? 'سُجل الدفع دون تأكيد الحجز (انتهت المهلة أو تغيرت الحالة). راجعي التفاصيل.'
       : 'Payment recorded without booking confirmation. Review the details.';
+  String get completeBooking => isArabic ? 'تأكيد الإكمال' : 'Mark completed';
+  String get completeBookingConfirm => isArabic
+      ? 'سيُسجل هذا الحجز مكتملًا. متابعة؟'
+      : 'This booking will be marked completed. Continue?';
+  String get bookingCompleted =>
+      isArabic ? 'سُجل الحجز مكتملًا' : 'Booking marked completed';
+  String get completionNotAllowed => isArabic
+      ? 'الإكمال متاح للحجز المؤكد فقط.'
+      : 'Only confirmed bookings can be completed.';
+  String get rateExperience => isArabic ? 'قيّمي التجربة' : 'Rate the experience';
+  String get ratingStars => isArabic ? 'التقييم بالنجوم' : 'Star rating';
+  String get commentOptional =>
+      isArabic ? 'تعليق (اختياري)' : 'Comment (optional)';
+  String get submitReview => isArabic ? 'إرسال التقييم' : 'Submit review';
+  String get reviewSubmitted => isArabic ? 'شكرًا! سُجل تقييمك.' : 'Review saved.';
+  String get alreadyReviewed => isArabic
+      ? 'سبق أن قيّمتِ هذا الحجز.'
+      : 'You already reviewed this booking.';
+  String get reviewBeforeCompletion => isArabic
+      ? 'التقييم متاح بعد اكتمال الحجز فقط.'
+      : 'Reviews open after the booking completes.';
+  String get myReview => isArabic ? 'تقييمك' : 'Your review';
+  String get otherPartyReview => isArabic
+      ? 'تقييم الطرف الآخر'
+      : 'Other party review';
+  String get confirmedInProgress => isArabic
+      ? 'مؤكدة وقيد التنفيذ'
+      : 'Confirmed and upcoming';
+  String get noConfirmedBookings => isArabic
+      ? 'لا توجد حجوزات مؤكدة حاليًا.'
+      : 'No confirmed bookings right now.';
+  String get customerAddress =>
+      isArabic ? 'عنوان العميلة' : 'Customer address';
   String get loadingRequests => isArabic
       ? 'جارٍ تحميل الطلبات…'
       : 'Loading requests…';

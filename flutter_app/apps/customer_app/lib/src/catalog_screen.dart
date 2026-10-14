@@ -16,6 +16,8 @@ class CatalogScreen extends StatefulWidget {
     required this.addresses,
     required this.bookings,
     required this.payments,
+    required this.reviews,
+    this.currentUserId,
     super.key,
   });
 
@@ -24,6 +26,8 @@ class CatalogScreen extends StatefulWidget {
   final AddressGateway addresses;
   final BookingGateway bookings;
   final PaymentGateway payments;
+  final ReviewGateway reviews;
+  final String? currentUserId;
 
   @override
   State<CatalogScreen> createState() => _CatalogScreenState();
@@ -117,6 +121,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         addresses: widget.addresses,
                         bookings: widget.bookings,
                         payments: widget.payments,
+                        reviews: widget.reviews,
+                        currentUserId: widget.currentUserId,
                         expertId: _experts[index].id,
                       ),
                     ),
@@ -533,6 +539,8 @@ class ExpertDetailScreen extends StatefulWidget {
     required this.addresses,
     required this.bookings,
     required this.payments,
+    required this.reviews,
+    this.currentUserId,
     required this.expertId,
     super.key,
   });
@@ -542,6 +550,8 @@ class ExpertDetailScreen extends StatefulWidget {
   final AddressGateway addresses;
   final BookingGateway bookings;
   final PaymentGateway payments;
+  final ReviewGateway reviews;
+  final String? currentUserId;
   final String expertId;
 
   @override
@@ -860,6 +870,8 @@ class _ExpertDetailScreenState extends State<ExpertDetailScreen>
           builder: (_) => BookingDetailScreen(
             bookings: widget.bookings,
             payments: widget.payments,
+            reviews: widget.reviews,
+            currentUserId: widget.currentUserId,
             bookingId: created.id,
           ),
         ),

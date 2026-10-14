@@ -26,6 +26,7 @@ void main() {
           addresses: _AddressesGateway(),
           bookings: bookings,
           payments: _RecordingPayments(),
+          reviews: _ReviewsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -66,6 +67,8 @@ void main() {
           body: CustomerBookingsScreen(
             bookings: bookings,
             payments: _RecordingPayments(),
+            reviews: _ReviewsGateway(),
+            currentUserId: 'c1',
           ),
         ),
       ),
@@ -102,6 +105,8 @@ void main() {
         BookingDetailScreen(
           bookings: bookings,
           payments: _RecordingPayments(),
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -134,6 +139,8 @@ void main() {
         BookingDetailScreen(
           bookings: bookings,
           payments: payments,
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -166,6 +173,8 @@ void main() {
         BookingDetailScreen(
           bookings: bookings,
           payments: payments,
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -197,6 +206,8 @@ void main() {
         BookingDetailScreen(
           bookings: bookings,
           payments: payments,
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -223,6 +234,8 @@ void main() {
         BookingDetailScreen(
           bookings: bookings,
           payments: payments,
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -243,13 +256,16 @@ void main() {
     expect(find.text('مؤكد'), findsNothing);
   });
 
-  testWidgets('pending booking offers no pay button', (tester) async {    final bookings = _BookingsGateway();
+  testWidgets('pending booking offers no pay button', (tester) async {
+    final bookings = _BookingsGateway();
     final payments = _RecordingPayments();
     await tester.pumpWidget(
       testApp(
         BookingDetailScreen(
           bookings: bookings,
           payments: payments,
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -275,6 +291,8 @@ void main() {
         BookingDetailScreen(
           bookings: bookings,
           payments: payments,
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
           bookingId: 'b1',
         ),
       ),
@@ -295,6 +313,134 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('مؤكد'), findsNothing);
+  });
+
+  testWidgets('complete moves confirmed to completed', (tester) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'confirmed'));
+    bookings.detailQueue.add(_booking(status: 'completed'));
+    final reviews = _ReviewsGateway();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: _RecordingPayments(),
+          reviews: reviews,
+          currentUserId: 'c1',
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('booking-complete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('booking-complete')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('complete-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(bookings.completed, ['b1']);
+    expect(find.text('سُجل الحجز مكتملًا'), findsOneWidget);
+    expect(find.text('قيّمي التجربة'), findsOneWidget);
+  });
+
+  testWidgets('review submits once then shows the saved review', (
+    tester,
+  ) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'completed'));
+    final reviews = _ReviewsGateway();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: _RecordingPayments(),
+          reviews: reviews,
+          currentUserId: 'c1',
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('review-submit')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('review-star-4')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('review-comment')),
+      'تجربة جيدة',
+    );
+    await tester.tap(find.byKey(const ValueKey('review-submit')));
+    await tester.pumpAndSettle();
+
+    expect(reviews.submits, 1);
+    expect(reviews.lastRating, 4);
+    expect(find.text('شكرًا! سُجل تقييمك.'), findsOneWidget);
+
+    // The saved review replaces the form; a second submit is impossible
+    // from this UI, and the server guards repeats with DUPLICATE_REVIEW.
+    reviews.existing = const BookingReview(
+      id: 'r1',
+      bookingId: 'b1',
+      reviewerId: 'c1',
+      revieweeId: 'e1',
+      rating: 4,
+      comment: 'تجربة جيدة',
+      createdAt: '2026-10-21T08:00:00.000Z',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('review-submit')), findsNothing);
+    expect(find.textContaining('تقييمك'), findsOneWidget);
+  });
+
+  testWidgets('duplicate review reports the server guard', (tester) async {
+    final bookings = _BookingsGateway();
+    bookings.detailQueue.add(_booking(status: 'completed'));
+    final reviews = _ReviewsGateway()
+      ..failSubmitWith = const ApiFailure(
+        kind: ApiFailureKind.conflict,
+        code: 'DUPLICATE_REVIEW',
+        message: 'duplicate',
+      );
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: _RecordingPayments(),
+          reviews: reviews,
+          currentUserId: 'c1',
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('review-submit')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('review-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('سبق أن قيّمتِ هذا الحجز.'), findsOneWidget);
+  });
+
+  testWidgets('no review form before completion', (tester) async {
+    final bookings = _BookingsGateway();
+    await tester.pumpWidget(
+      testApp(
+        BookingDetailScreen(
+          bookings: bookings,
+          payments: _RecordingPayments(),
+          reviews: _ReviewsGateway(),
+          currentUserId: 'c1',
+          bookingId: 'b1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('review-submit')), findsNothing);
+    expect(find.byKey(const ValueKey('booking-complete')), findsNothing);
   });
 }
 
@@ -400,6 +546,38 @@ class _RecordingPayments implements PaymentGateway {
       confirmed: false,
     );
   }
+}
+
+
+class _ReviewsGateway implements ReviewGateway {
+  BookingReview? existing;
+  int submits = 0;
+  int? lastRating;
+  Object? failSubmitWith;
+
+  @override
+  Future<BookingReview> submit(
+    String bookingId, {
+    required int rating,
+    String? comment,
+  }) async {
+    submits += 1;
+    if (failSubmitWith != null) throw failSubmitWith!;
+    lastRating = rating;
+    return BookingReview(
+      id: 'r1',
+      bookingId: bookingId,
+      reviewerId: 'c1',
+      revieweeId: 'e1',
+      rating: rating,
+      comment: comment,
+      createdAt: '2026-10-21T08:00:00.000Z',
+    );
+  }
+
+  @override
+  Future<List<BookingReview>> forBooking(String bookingId) async =>
+      existing == null ? const [] : [existing!];
 }
 
 class _DetailGateway implements CatalogGateway {
@@ -560,6 +738,7 @@ class _BookingsGateway implements BookingGateway {
   final created = <Booking>[];
   final keys = <String>[];
   final cancelled = <String>[];
+  final completed = <String>[];
   int detailCalls = 0;
   Completer<Booking>? createGate;
   final detailQueue = <Booking>[];
@@ -612,5 +791,11 @@ class _BookingsGateway implements BookingGateway {
     if (cancelError != null) throw cancelError!;
     cancelled.add(id);
     return _booking(status: 'cancelled');
+  }
+
+  @override
+  Future<Booking> complete(String id) async {
+    completed.add(id);
+    return _booking(status: 'completed');
   }
 }

@@ -17,6 +17,7 @@ class ExpertWorkspaceShell extends StatefulWidget {
     required this.catalogApi,
     required this.availabilityApi,
     required this.bookingApi,
+    required this.reviewApi,
     super.key,
   });
 
@@ -26,6 +27,7 @@ class ExpertWorkspaceShell extends StatefulWidget {
   final CatalogGateway catalogApi;
   final AvailabilityGateway availabilityApi;
   final BookingGateway bookingApi;
+  final ReviewGateway reviewApi;
 
   @override
   State<ExpertWorkspaceShell> createState() => _ExpertWorkspaceShellState();
@@ -106,6 +108,8 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
       ),
       ExpertRequestsScreen(
         bookings: widget.bookingApi,
+        reviews: widget.reviewApi,
+        currentUserId: widget.manager.user?.id,
         refreshSignal: _refreshSignal,
       ),
     ];

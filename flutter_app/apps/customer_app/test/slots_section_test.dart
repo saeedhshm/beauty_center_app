@@ -43,6 +43,7 @@ void main() {
           addresses: _AddressesGateway(),
           bookings: _BookingsGateway(),
           payments: _PaymentsGateway(),
+          reviews: _ReviewsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -71,6 +72,7 @@ void main() {
           addresses: _AddressesGateway(),
           bookings: _BookingsGateway(),
           payments: _PaymentsGateway(),
+          reviews: _ReviewsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -126,6 +128,7 @@ void main() {
           addresses: _AddressesGateway(),
           bookings: _BookingsGateway(),
           payments: _PaymentsGateway(),
+          reviews: _ReviewsGateway(),
           expertId: 'expert-1',
         ),
       ),
@@ -216,6 +219,19 @@ class _AddressesGateway implements AddressGateway {
   Future<void> delete(String id) => throw UnimplementedError();
 }
 
+
+class _ReviewsGateway implements ReviewGateway {
+  @override
+  Future<BookingReview> submit(
+    String bookingId, {
+    required int rating,
+    String? comment,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<List<BookingReview>> forBooking(String bookingId) async => const [];
+}
+
 class _BookingsGateway implements BookingGateway {
   @override
   Future<Booking> createBooking({
@@ -244,6 +260,9 @@ class _BookingsGateway implements BookingGateway {
   @override
   Future<Booking> cancel(String id, {String? reason}) =>
       throw UnimplementedError();
+
+  @override
+  Future<Booking> complete(String id) => throw UnimplementedError();
 }
 
 class _DetailGateway implements CatalogGateway {
