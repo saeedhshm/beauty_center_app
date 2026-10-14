@@ -41,6 +41,11 @@ class SessionManager extends ChangeNotifier implements ApiAuthenticator {
   AuthUser? get user => _session?.user;
   bool get isAuthenticated => _phase == SessionPhase.authenticated;
 
+  /// Runs at the start of [logout] while the session is still valid, e.g. to
+  /// remove a server-side device row that needs an authenticated call.
+  /// Failures never block logout.
+  Future<void> Function()? onBeforeLogout;
+
   Future<void> bootstrap() {
     final active = _bootstrapFuture;
     if (active != null) return active;
@@ -128,6 +133,11 @@ class SessionManager extends ChangeNotifier implements ApiAuthenticator {
   );
 
   Future<void> logout() async {
+    try {
+      await onBeforeLogout?.call();
+    } on Object {
+      // Pre-logout cleanup must never block logout.
+    }
     final token = _session?.refreshToken ?? _storedSession?.refreshToken;
     try {
       if (token != null) await _gateway.logout(token);

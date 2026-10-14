@@ -17,7 +17,7 @@ void main() {
     await registrar.dispose();
   });
 
-  test('rotation re-registers without duplicates handling client-side', () async {
+  test('rotation replaces the owned row without leaving a stale one', () async {
     final provider = _PushProvider(token: 'token-a');
     final gateway = _NotificationGateway();
     final registrar = PushRegistrar(provider: provider, gateway: gateway);
@@ -27,6 +27,8 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(gateway.registered, ['token-a', 'token-b']);
+    expect(gateway.removed, ['device-1']);
+    expect(registrar.serverDeviceId, 'device-2');
     await registrar.dispose();
   });
 
@@ -54,6 +56,33 @@ void main() {
 
     expect(provider.deleted, isTrue);
     expect(gateway.removed, ['device-1']);
+    expect(registrar.serverDeviceId, isNull);
+  });
+
+  test('server removal keeps local state for the caller to clear', () async {
+    final provider = _PushProvider(token: 'device-token');
+    final gateway = _NotificationGateway();
+    final registrar = PushRegistrar(provider: provider, gateway: gateway);
+    await registrar.syncOnLogin();
+
+    await registrar.removeServerDevice();
+
+    expect(gateway.removed, ['device-1']);
+    expect(registrar.serverDeviceId, isNull);
+    expect(provider.deleted, isFalse);
+  });
+
+  test('local cleanup never touches the server', () async {
+    final provider = _PushProvider(token: 'device-token');
+    final gateway = _NotificationGateway();
+    final registrar = PushRegistrar(provider: provider, gateway: gateway);
+    await registrar.syncOnLogin();
+    gateway.removed.clear();
+
+    await registrar.clearLocal();
+
+    expect(gateway.removed, isEmpty);
+    expect(provider.deleted, isTrue);
     expect(registrar.serverDeviceId, isNull);
   });
 
@@ -112,8 +141,8 @@ class _NotificationGateway implements NotificationGateway {
   @override
   Future<RegisteredDevice> registerDevice(String token) async {
     registered.add(token);
-    return const RegisteredDevice(
-      id: 'device-1',
+    return RegisteredDevice(
+      id: 'device-${registered.length}',
       createdAt: '2026-10-14T06:00:00.000Z',
     );
   }

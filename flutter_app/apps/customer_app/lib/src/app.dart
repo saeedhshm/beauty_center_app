@@ -83,25 +83,19 @@ final pushRegistrarProvider = Provider<PushRegistrar>(
   },
 );
 
-/// Bridges session transitions to the device-token lifecycle. Permission is
-/// requested only after a real login; logout removes the token best-effort.
+/// Binds [SessionManager] transitions to the device-token lifecycle through
+/// [PushSessionSync], which subscribes to the manager itself (a plain
+/// provider value never changes for a ChangeNotifier). Permission is
+/// requested only after a real login.
 final pushSyncProvider = Provider<void>((ref) {
-  SessionPhase? previous;
-  void sync() {
-    final manager = ref.read(sessionManagerProvider);
-    final registrar = ref.read(pushRegistrarProvider);
-    final authenticated = manager.isAuthenticated;
-    if (authenticated && previous != SessionPhase.authenticated) {
-      unawaited(registrar.syncOnLogin());
-    } else if (!authenticated &&
-        previous == SessionPhase.authenticated) {
-      unawaited(registrar.syncOnLogout());
-    }
-    previous = manager.phase;
-  }
-
-  sync();
-  ref.listen(sessionManagerProvider, (_, _) => sync());
+  final sync = PushSessionSync(
+    manager: ref.watch(sessionManagerProvider),
+    registrar: ref.read(pushRegistrarProvider),
+  );
+  sync.attach();
+  ref.onDispose(() async {
+    await sync.dispose();
+  });
 });
 
 final availabilityApiProvider = Provider<AvailabilityGateway>(
