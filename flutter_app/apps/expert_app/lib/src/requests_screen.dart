@@ -4,8 +4,28 @@ import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
-/// Expert pending requests (A5): accept/reject owned pending bookings only.
-/// Every transition refetches; 409 reloads the current state explicitly.
+enum _SectionKind { pending, accepted, confirmed }
+
+/// Independent server-side paging state per section. Pages never mix:
+/// each section tracks its own page, hasNext, loading flags, error, and a
+/// generation counter that discards stale responses after a refresh or a
+/// concurrent state transition.
+class _SectionData {
+  _SectionData(this.status);
+
+  final String status;
+  List<Booking> items = [];
+  int page = 0;
+  bool hasNext = false;
+  bool loading = false;
+  bool loadingMore = false;
+  Object? error;
+  int generation = 0;
+}
+
+/// Expert requests (A5+): owned pending bookings with accept/reject, plus
+/// read-only accepted and confirmed sections. Every section pages
+/// independently from the server; transitions reload only affected sections.
 class ExpertRequestsScreen extends StatefulWidget {
   const ExpertRequestsScreen({
     required this.bookings,
@@ -26,11 +46,12 @@ class ExpertRequestsScreen extends StatefulWidget {
 
 class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
     with WidgetsBindingObserver {
-  List<Booking> _items = const [];
-  List<Booking> _accepted = const [];
-  List<Booking> _confirmed = const [];
-  bool _loading = true;
-  Object? _error;
+  final Map<_SectionKind, _SectionData> _sections = {
+    _SectionKind.pending: _SectionData(BookingStates.pending),
+    _SectionKind.accepted: _SectionData(BookingStates.accepted),
+    _SectionKind.confirmed: _SectionData(BookingStates.confirmed),
+  };
+  bool _firstLoad = true;
   String? _mutatingId;
 
   @override
@@ -62,41 +83,84 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
     if (state == AppLifecycleState.resumed) _load();
   }
 
+  /// Resets every section to page one and refetches. Late responses from a
+  /// previous generation are ignored per section.
   Future<void> _load() async {
     if (!mounted) return;
-    setState(() => _error = null);
+    for (final section in _sections.values) {
+      section.generation++;
+      section.page = 0;
+      section.error = null;
+      section.loading = true;
+      section.loadingMore = false;
+    }
+    setState(() {});
+    await Future.wait([
+      for (final kind in _sections.keys) _fetchPage(kind, 1, reset: true),
+    ]);
+    if (mounted) setState(() => _firstLoad = false);
+  }
+
+  /// Resets only the affected sections (e.g. pending + accepted after an
+  /// accept that moves a booking across sections).
+  Future<void> _reloadSections(Set<_SectionKind> kinds) async {
+    if (!mounted) return;
+    for (final kind in kinds) {
+      final section = _sections[kind]!;
+      section.generation++;
+      section.page = 0;
+      section.items = [];
+      section.error = null;
+      section.loading = true;
+      section.loadingMore = false;
+    }
+    setState(() {});
+    await Future.wait([
+      for (final kind in kinds) _fetchPage(kind, 1, reset: true),
+    ]);
+  }
+
+  Future<void> _fetchPage(
+    _SectionKind kind,
+    int page, {
+    required bool reset,
+  }) async {
+    final section = _sections[kind]!;
+    final generation = section.generation;
     try {
-      final results = await Future.wait([
-        widget.bookings.bookings(status: 'pending'),
-        widget.bookings.bookings(status: 'accepted'),
-        widget.bookings.bookings(status: 'confirmed'),
-      ]);
-      if (!mounted) return;
+      final result = await widget.bookings.bookings(
+        status: section.status,
+        page: page,
+      );
+      if (!mounted || section.generation != generation) return;
+      final items = result.items
+          .where((item) => item.status == section.status)
+          .toList(growable: false);
       setState(() {
-        // Ownership is enforced server-side; keep only visible states.
-        _items = results[0].items
-            .where((item) => item.status == BookingStates.pending)
-            .toList(growable: false);
-        // A6: accepted bookings awaiting customer payment, read-only here.
-        // Confirmation appears only after the server confirms it.
-        _accepted = results[1].items
-            .where((item) => item.status == BookingStates.accepted)
-            .toList(growable: false);
-        // A7: confirmed bookings ready to complete, with address disclosed
-        // to the owning expert per current backend policy.
-        _confirmed = results[2].items
-            .where((item) => item.status == BookingStates.confirmed)
-            .toList(growable: false);
-        _loading = false;
+        section.items = reset ? items : [...section.items, ...items];
+        section.page = result.page;
+        section.hasNext = result.hasNext;
+        section.loading = false;
+        section.loadingMore = false;
+        section.error = null;
       });
     } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error;
-          _loading = false;
-        });
-      }
+      if (!mounted || section.generation != generation) return;
+      setState(() {
+        section.loading = false;
+        section.loadingMore = false;
+        section.error = error;
+      });
     }
+  }
+
+  /// Guarded: no duplicate or overlapping load-more, and never while the
+  /// section is still on its first page fetch.
+  Future<void> _loadMore(_SectionKind kind) async {
+    final section = _sections[kind]!;
+    if (section.loadingMore || !section.hasNext || section.loading) return;
+    setState(() => section.loadingMore = true);
+    await _fetchPage(kind, section.page + 1, reset: false);
   }
 
   Future<void> _accept(Booking booking) async {
@@ -109,14 +173,14 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.lamsa.bookingAccepted)),
       );
-      await _load();
+      await _reloadSections({_SectionKind.pending, _SectionKind.accepted});
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() => _mutatingId = null);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_conflictMessage(failure))),
       );
-      await _load();
+      await _reloadSections({_SectionKind.pending, _SectionKind.accepted});
     } on Object {
       if (mounted) setState(() => _mutatingId = null);
     }
@@ -138,14 +202,14 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.lamsa.bookingRejected)),
       );
-      await _load();
+      await _reloadSections({_SectionKind.pending});
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() => _mutatingId = null);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_conflictMessage(failure))),
       );
-      await _load();
+      await _reloadSections({_SectionKind.pending});
     } on Object {
       if (mounted) setState(() => _mutatingId = null);
     }
@@ -164,22 +228,11 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _error == null && _items.isEmpty) {
+    if (_firstLoad) {
       return LamsaStatusView(
         status: LamsaStatus.loading,
         title: context.lamsa.bookingRequests,
         message: context.lamsa.loadingRequests,
-      );
-    }
-    if (_error != null && _items.isEmpty) {
-      final failure = _error is ApiFailure ? _error! as ApiFailure : null;
-      return LamsaStatusView(
-        status: failure?.kind == ApiFailureKind.forbidden
-            ? LamsaStatus.forbidden
-            : LamsaStatus.error,
-        title: context.lamsa.bookingRequests,
-        message: failure?.message ?? context.lamsa.tryAgain,
-        onRetry: _load,
       );
     }
     return RefreshIndicator(
@@ -187,14 +240,43 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
       child: ListView(
         padding: const EdgeInsets.all(LamsaSpacing.lg),
         children: [
-          if (_items.isEmpty)
+          _pendingSection(),
+          const SizedBox(height: 16),
+          Text(
+            context.lamsa.acceptedAwaitingPayment,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          _itemsSection(_SectionKind.accepted),
+          const SizedBox(height: 16),
+          Text(
+            context.lamsa.confirmedInProgress,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          _itemsSection(_SectionKind.confirmed),
+        ],
+      ),
+    );
+  }
+
+  Widget _pendingSection() {
+    final section = _sections[_SectionKind.pending]!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (section.error != null)
+          _sectionError(_SectionKind.pending)
+        else ...[
+          if (section.items.isEmpty && !section.loading)
             LamsaStatusView(
               status: LamsaStatus.empty,
               title: context.lamsa.bookingRequests,
               message: context.lamsa.noPendingRequests,
-              onRetry: _load,
+              onRetry: () =>
+                  _reloadSections({_SectionKind.pending}),
             ),
-          for (final booking in _items)
+          for (final booking in section.items)
             Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: Padding(
@@ -245,71 +327,113 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
                 ),
               ),
             ),
-          const SizedBox(height: 16),
-          Text(
-            context.lamsa.acceptedAwaitingPayment,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (_accepted.isEmpty)
-            Text(
-              context.lamsa.noAcceptedAwaitingPayment,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          for (final booking in _accepted)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                key: ValueKey('accepted-${booking.id}'),
-                title: Text(
-                  '${booking.totalAmount} ${booking.currency}',
-                ),
-                subtitle: Text(
-                  booking.startsAt,
-                  textDirection: TextDirection.ltr,
-                ),
-              ),
-            ),
-          const SizedBox(height: 16),
-          Text(
-            context.lamsa.confirmedInProgress,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          if (_confirmed.isEmpty)
-            Text(
-              context.lamsa.noConfirmedBookings,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          for (final booking in _confirmed)
-            Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                key: ValueKey('confirmed-${booking.id}'),
-                title: Text(
-                  '${booking.totalAmount} ${booking.currency}',
-                ),
-                subtitle: Text(
-                  booking.startsAt,
-                  textDirection: TextDirection.ltr,
-                ),
-                trailing: const Icon(Icons.chevron_left),
-                onTap: () async {
-                  await showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    builder: (sheetContext) => _ConfirmedSheet(
-                      bookings: widget.bookings,
-                      reviews: widget.reviews,
-                      currentUserId: widget.currentUserId,
-                      booking: booking,
-                    ),
-                  );
-                  if (mounted) _load();
-                },
-              ),
-            ),
+          _loadMoreRow(_SectionKind.pending),
         ],
+      ],
+    );
+  }
+
+  Widget _itemsSection(_SectionKind kind) {
+    final section = _sections[kind]!;
+    final name = kind.name;
+    final emptyText = kind == _SectionKind.accepted
+        ? context.lamsa.noAcceptedAwaitingPayment
+        : context.lamsa.noConfirmedBookings;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (section.error != null)
+          _sectionError(kind)
+        else ...[
+          if (section.items.isEmpty && !section.loading)
+            Text(
+              emptyText,
+              key: ValueKey('empty-$name'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          for (final booking in section.items)
+            Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                key: ValueKey('$name-${booking.id}'),
+                title: Text(
+                  '${booking.totalAmount} ${booking.currency}',
+                ),
+                subtitle: Text(
+                  booking.startsAt,
+                  textDirection: TextDirection.ltr,
+                ),
+                trailing: kind == _SectionKind.confirmed
+                    ? const Icon(Icons.chevron_left)
+                    : null,
+                onTap: kind == _SectionKind.confirmed
+                    ? () async {
+                        await showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (sheetContext) => _ConfirmedSheet(
+                            bookings: widget.bookings,
+                            reviews: widget.reviews,
+                            currentUserId: widget.currentUserId,
+                            booking: booking,
+                          ),
+                        );
+                        if (mounted) {
+                          await _reloadSections({_SectionKind.confirmed});
+                        }
+                      }
+                    : null,
+              ),
+            ),
+          _loadMoreRow(kind),
+        ],
+      ],
+    );
+  }
+
+  Widget _sectionError(_SectionKind kind) {
+    final section = _sections[kind]!;
+    final error = section.error!;
+    final message = error is ApiFailure ? error.message : context.lamsa.tryAgain;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              message,
+              key: ValueKey('error-${kind.name}'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              key: ValueKey('retry-${kind.name}'),
+              onPressed: () => _reloadSections({kind}),
+              child: Text(context.lamsa.retry),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _loadMoreRow(_SectionKind kind) {
+    final section = _sections[kind]!;
+    if (!section.hasNext) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: OutlinedButton(
+        key: ValueKey('load-more-${kind.name}'),
+        onPressed:
+            section.loadingMore ? null : () => _loadMore(kind),
+        child: section.loadingMore
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(context.lamsa.loadMore),
       ),
     );
   }
