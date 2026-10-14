@@ -52,10 +52,22 @@ flutter build apk --debug --dart-define=APP_ENV=development
 flutter build ios --simulator --debug --dart-define=APP_ENV=development
 ```
 
-## رحلة E2E المحلية (ليست staging)
+## مستويات الاختبار (مصطلحات دقيقة)
 
-لا توجد بيئة staging. تُشغل الرحلة الأساسية ضد Backend محلي وقاعدة معزولة
-(`apps/customer_app/test/e2e_journey_test.dart`، يُتجاوز دون المتغير):
+- **unit/widget**: منطق وواجهات ببوابات وهمية (mocks) — لا تثبت أي تكامل حقيقي.
+- **رحلة تكامل API محلية** (`test/api_integration_journey_test.dart`): فئات البوابات
+  الحقيقية تُستدعى مباشرة ضد Backend حقيقي وقاعدة معزولة — **بدون واجهات
+  Flutter**، وليست E2E.
+- **تكامل واجهة Flutter** (`integration_test/app_journey_test.dart`): التطبيق
+  والشاشات الحقيقية تُقاد بالنقر ضد Backend حقيقي وقاعدة معزولة — تُشغل على
+  جهاز/محاكي (`flutter test -d <id> integration_test`)، لا تغطي استلام Push
+  الفوري أو روابط المنصة العميقة.
+- **رحلة staging E2E**: **غير موجودة** — لا توجد بيئة staging، وA8 ما زالت
+  جزئية (بلا Push فوري). أي ادعاء E2E كامل مرفوض حتى تحسم.
+
+## رحلة التكامل المحلية (ليست staging ولا E2E كاملًا)
+
+لا توجد بيئة staging. تُشغل الرحلتان ضد Backend محلي وقاعدة معزولة:
 
 ```sh
 # 1. قاعدة معزولة + migrations (على خادم اختبار Postgres المحلي)
@@ -64,14 +76,18 @@ psql -h 127.0.0.1 -p 55433 -U lamsa_test -d lamsa_test \
 cd ../../web_app/backend
 DATABASE_URL=postgresql://lamsa_test:lamsa_test@127.0.0.1:55433/lamsa_e2e npm run db:migrate
 # 2. تهيئة مدير وخدمة (بيانات اصطناعية فقط)، ثم تشغيل API على 3100
-# 3. من apps/customer_app:
-LAMSA_E2E_BASE_URL=http://127.0.0.1:3100 flutter test test/e2e_journey_test.dart
-# 4. إيقاف الخادم وحذف lamsa_e2e بعد الانتهاء
+# 3. من apps/customer_app — رحلة تكامل API (بدون واجهات):
+LAMSA_E2E_BASE_URL=http://127.0.0.1:3100 flutter test test/api_integration_journey_test.dart
+# 4. من apps/customer_app — تكامل الواجهة على محاكي/جهاز حقيقي:
+LAMSA_E2E_BASE_URL=http://127.0.0.1:3100 flutter test -d <device-id> --dart-define=LAMSA_E2E_BASE_URL=http://127.0.0.1:3100 integration_test
+# 5. إيقاف الخادم وحذف lamsa_e2e بعد الانتهاء
 ```
 
-تغطي الرحلة: تسجيل الطرفين، اعتماد الخبيرة، التوفر، المواعيد، العنوان، إنشاء
-الحجز، القبول، الدفع والتأكيد، الإكمال، التقييم المتبادل، أهلية المستحقات،
-التنبيهات، وحل رابط عميق — ببيانات اصطناعية فقط.
+تغطي رحلة API: تسجيل الطرفين، اعتماد الخبيرة، التوفر، المواعيد، العنوان،
+إنشاء الحجز، القبول، الدفع والتأكيد، الإكمال، التقييم المتبادل، أهلية
+المستحقات، التنبيهات، وحل رابط عميق — ببيانات اصطناعية فقط. ويغطي تكامل
+الواجهة: تسجيل عميلة حقيقية، وظهور الخدمة المهيأة والخبيرة المعتمدة ومواعيدها
+الحقيقية داخل الشاشات الحقيقية.
 
 ## ملاحظات الإصدار
 

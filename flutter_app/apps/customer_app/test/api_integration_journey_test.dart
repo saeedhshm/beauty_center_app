@@ -7,10 +7,13 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 import 'package:uuid/uuid.dart';
 
-/// Local end-to-end journey (A10): the real mobile gateway classes against a
-/// real backend + PostgreSQL on an isolated database. NOT staging: run only
-/// with LAMSA_E2E_BASE_URL set (e.g. a local backend pointed at lamsa_e2e),
-/// otherwise this file skips. Synthetic fixtures only.
+/// Local API integration journey (NOT staging, NOT full-app E2E): the real
+/// mobile gateway classes driven directly against a real backend + isolated
+/// PostgreSQL database. No Flutter widgets run here; UI coverage lives in
+/// widget tests (mocked contracts) and integration_test/app_journey_test.dart
+/// (real widgets + real backend). Run only with LAMSA_E2E_BASE_URL set (e.g.
+/// a local backend pointed at lamsa_e2e), otherwise this file skips.
+/// Synthetic fixtures only.
 const _baseUrl = String.fromEnvironment(
   'LAMSA_E2E_BASE_URL',
   defaultValue: '',
@@ -25,7 +28,7 @@ String get _base {
 void main() {
   final enabled = _base.isNotEmpty;
   test(
-    'customer and expert journey on a live local backend',
+    'customer and expert API integration journey on a live local backend',
     skip: enabled ? false : 'Set LAMSA_E2E_BASE_URL to run the live journey',
     () async {
       final dio = Dio(BaseOptions(baseUrl: _base));
