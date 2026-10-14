@@ -31,6 +31,7 @@ class _ExpertEarningsScreenState extends State<ExpertEarningsScreen>
   bool _loading = true;
   bool _loadingMore = false;
   Object? _error;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
@@ -64,11 +65,15 @@ class _ExpertEarningsScreenState extends State<ExpertEarningsScreen>
   Future<void> _reload() => _load(reset: true);
 
   Future<void> _load({bool reset = false}) async {
+    final generation = reset ? ++_requestGeneration : _requestGeneration;
+    final transferred = _transferredFilter;
+    final page = reset ? 1 : _page;
     if (!mounted) return;
     setState(() {
       if (reset) {
         _page = 1;
         _items = const [];
+        _loadingMore = false;
       }
       _loading = reset || (_summary == null && _items.isEmpty);
       _error = null;
@@ -77,53 +82,73 @@ class _ExpertEarningsScreenState extends State<ExpertEarningsScreen>
       final results = await Future.wait([
         widget.earnings.earnings(),
         widget.earnings.payouts(
-          transferred: _transferredFilter,
-          page: reset ? 1 : _page,
+          transferred: transferred,
+          page: page,
         ),
       ]);
-      if (!mounted) return;
-      final page = results[1] as CatalogPage<ExpertPayout>;
+      if (!_isCurrentEarningsRequest(generation, transferred)) return;
+      final fetched = results[1] as CatalogPage<ExpertPayout>;
       setState(() {
         _summary = results[0] as EarningsSummary;
-        _items = reset ? page.items : [..._items, ...page.items];
-        _page = page.page;
-        _hasNext = page.hasNext;
+        _items = reset ? fetched.items : [..._items, ...fetched.items];
+        _page = fetched.page;
+        _hasNext = fetched.hasNext;
         _loading = false;
       });
     } catch (error) {
-      if (mounted) {
+      if (_isCurrentEarningsRequest(generation, transferred)) {
         setState(() {
           _error = error;
           _loading = false;
         });
       }
+    } finally {
+      if (_isCurrentEarningsRequest(generation, transferred)) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _loadMore() async {
+    final generation = _requestGeneration;
+    final transferred = _transferredFilter;
+    final page = _page;
     if (_loadingMore || !_hasNext) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _error = null;
+    });
     try {
-      final page = await widget.earnings.payouts(
-        transferred: _transferredFilter,
-        page: _page + 1,
+      final fetched = await widget.earnings.payouts(
+        transferred: transferred,
+        page: page + 1,
       );
-      if (!mounted) return;
+      if (!_isCurrentEarningsRequest(generation, transferred) ||
+          _page != page) {
+        return;
+      }
       setState(() {
-        _items = [..._items, ...page.items];
-        _page = page.page;
-        _hasNext = page.hasNext;
-        _loadingMore = false;
+        _items = [..._items, ...fetched.items];
+        _page = fetched.page;
+        _hasNext = fetched.hasNext;
       });
     } catch (error) {
-      if (mounted) {
-        setState(() {
-          _loadingMore = false;
-          _error = error;
-        });
+      if (_isCurrentEarningsRequest(generation, transferred) &&
+          _page == page) {
+        setState(() => _error = error);
+      }
+    } finally {
+      if (_isCurrentEarningsRequest(generation, transferred) &&
+          _page == page) {
+        setState(() => _loadingMore = false);
       }
     }
   }
+
+  bool _isCurrentEarningsRequest(int generation, bool? transferred) =>
+      mounted &&
+      generation == _requestGeneration &&
+      transferred == _transferredFilter;
 
   @override
   Widget build(BuildContext context) {

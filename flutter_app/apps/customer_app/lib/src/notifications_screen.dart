@@ -42,6 +42,7 @@ class _CustomerNotificationsScreenState
   bool _loading = true;
   bool _loadingMore = false;
   Object? _error;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
@@ -75,11 +76,15 @@ class _CustomerNotificationsScreenState
   Future<void> _reload() => _load(reset: true);
 
   Future<void> _load({bool reset = false}) async {
+    final generation = reset ? ++_requestGeneration : _requestGeneration;
+    final unreadOnly = _unreadOnly;
+    final page = reset ? 1 : _page;
     if (!mounted) return;
     setState(() {
       if (reset) {
         _page = 1;
         _items = const [];
+        _loadingMore = false;
       }
       _loading = reset || _items.isEmpty;
       _error = null;
@@ -87,54 +92,74 @@ class _CustomerNotificationsScreenState
     try {
       final results = await Future.wait([
         widget.notifications.notifications(
-          unreadOnly: _unreadOnly,
-          page: reset ? 1 : _page,
+          unreadOnly: unreadOnly,
+          page: page,
         ),
         widget.notifications.unreadCount(),
       ]);
-      if (!mounted) return;
-      final page = results[0] as CatalogPage<AppNotification>;
+      if (!_isCurrentNotificationsRequest(generation, unreadOnly)) return;
+      final fetched = results[0] as CatalogPage<AppNotification>;
       setState(() {
-        _items = reset ? page.items : [..._items, ...page.items];
-        _page = page.page;
-        _hasNext = page.hasNext;
+        _items = reset ? fetched.items : [..._items, ...fetched.items];
+        _page = fetched.page;
+        _hasNext = fetched.hasNext;
         _unread = results[1] as int;
         _loading = false;
       });
     } catch (error) {
-      if (mounted) {
+      if (_isCurrentNotificationsRequest(generation, unreadOnly)) {
         setState(() {
           _error = error;
           _loading = false;
         });
       }
+    } finally {
+      if (_isCurrentNotificationsRequest(generation, unreadOnly)) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _loadMore() async {
+    final generation = _requestGeneration;
+    final unreadOnly = _unreadOnly;
+    final page = _page;
     if (_loadingMore || !_hasNext) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _error = null;
+    });
     try {
-      final page = await widget.notifications.notifications(
-        unreadOnly: _unreadOnly,
-        page: _page + 1,
+      final fetched = await widget.notifications.notifications(
+        unreadOnly: unreadOnly,
+        page: page + 1,
       );
-      if (!mounted) return;
+      if (!_isCurrentNotificationsRequest(generation, unreadOnly) ||
+          _page != page) {
+        return;
+      }
       setState(() {
-        _items = [..._items, ...page.items];
-        _page = page.page;
-        _hasNext = page.hasNext;
-        _loadingMore = false;
+        _items = [..._items, ...fetched.items];
+        _page = fetched.page;
+        _hasNext = fetched.hasNext;
       });
     } catch (error) {
-      if (mounted) {
-        setState(() {
-          _loadingMore = false;
-          _error = error;
-        });
+      if (_isCurrentNotificationsRequest(generation, unreadOnly) &&
+          _page == page) {
+        setState(() => _error = error);
+      }
+    } finally {
+      if (_isCurrentNotificationsRequest(generation, unreadOnly) &&
+          _page == page) {
+        setState(() => _loadingMore = false);
       }
     }
   }
+
+  bool _isCurrentNotificationsRequest(int generation, bool unreadOnly) =>
+      mounted &&
+      generation == _requestGeneration &&
+      unreadOnly == _unreadOnly;
 
   Future<void> _markAllRead() async {
     try {

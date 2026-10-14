@@ -47,6 +47,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
   bool _loading = true;
   bool _loadingMore = false;
   Object? _error;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
@@ -80,21 +81,25 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
   Future<void> _reload() => _load(reset: true);
 
   Future<void> _load({bool reset = false}) async {
+    final generation = reset ? ++_requestGeneration : _requestGeneration;
+    final status = _status;
+    final page = reset ? 1 : _page;
     if (!mounted) return;
     setState(() {
       if (reset) {
         _page = 1;
         _items = const [];
+        _loadingMore = false;
       }
       _loading = reset || _page == 1 && _items.isEmpty;
       _error = null;
     });
     try {
       final result = await widget.bookings.bookings(
-        status: _status,
-        page: reset ? 1 : _page,
+        status: status,
+        page: page,
       );
-      if (!mounted) return;
+      if (!_isCurrentBookingsRequest(generation, status)) return;
       setState(() {
         _items = reset ? result.items : [..._items, ...result.items];
         _page = result.page;
@@ -102,39 +107,56 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
         _loading = false;
       });
     } catch (error) {
-      if (mounted) {
+      if (_isCurrentBookingsRequest(generation, status)) {
         setState(() {
           _error = error;
           _loading = false;
         });
       }
+    } finally {
+      if (_isCurrentBookingsRequest(generation, status)) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _loadMore() async {
+    final generation = _requestGeneration;
+    final status = _status;
+    final page = _page;
     if (_loadingMore || !_hasNext) return;
-    setState(() => _loadingMore = true);
+    setState(() {
+      _loadingMore = true;
+      _error = null;
+    });
     try {
       final result = await widget.bookings.bookings(
-        status: _status,
-        page: _page + 1,
+        status: status,
+        page: page + 1,
       );
-      if (!mounted) return;
+      if (!_isCurrentBookingsRequest(generation, status) || _page != page) {
+        return;
+      }
       setState(() {
         _items = [..._items, ...result.items];
         _page = result.page;
         _hasNext = result.hasNext;
-        _loadingMore = false;
       });
     } catch (error) {
-      if (mounted) {
-        setState(() {
-          _loadingMore = false;
-          _error = error;
-        });
+      if (_isCurrentBookingsRequest(generation, status) && _page == page) {
+        setState(() => _error = error);
+      }
+    } finally {
+      if (_isCurrentBookingsRequest(generation, status) && _page == page) {
+        setState(() => _loadingMore = false);
       }
     }
   }
+
+  bool _isCurrentBookingsRequest(int generation, String? status) =>
+      mounted &&
+      generation == _requestGeneration &&
+      status == _status;
 
   @override
   Widget build(BuildContext context) {
