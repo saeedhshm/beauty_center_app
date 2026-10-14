@@ -7,8 +7,14 @@ void main() {
       formatBookingDateTime('2026-10-20T07:00:00.000Z', 'Africa/Cairo'),
       'الثلاثاء، 20 أكتوبر 2026، 10:00',
     );
-    expect(formatBookingDate('2026-10-20T07:00:00.000Z', 'Africa/Cairo'), '20 أكتوبر 2026');
-    expect(formatBookingTime('2026-10-20T07:00:00.000Z', 'Africa/Cairo'), '10:00');
+    expect(
+      formatBookingDate('2026-10-20T07:00:00.000Z', 'Africa/Cairo'),
+      '20 أكتوبر 2026',
+    );
+    expect(
+      formatBookingTime('2026-10-20T07:00:00.000Z', 'Africa/Cairo'),
+      '10:00',
+    );
   });
 
   test('historic Riyadh booking keeps its own snapshot zone', () {
@@ -26,8 +32,14 @@ void main() {
 
   test('Cairo DST is honored across seasons', () {
     // Winter (+2) vs summer (+3) offsets of the same wall instant.
-    expect(formatBookingTime('2026-01-15T12:00:00.000Z', 'Africa/Cairo'), '14:00');
-    expect(formatBookingTime('2026-07-15T12:00:00.000Z', 'Africa/Cairo'), '15:00');
+    expect(
+      formatBookingTime('2026-01-15T12:00:00.000Z', 'Africa/Cairo'),
+      '14:00',
+    );
+    expect(
+      formatBookingTime('2026-07-15T12:00:00.000Z', 'Africa/Cairo'),
+      '15:00',
+    );
   });
 
   test('unknown zone falls back to UTC without crashing', () {

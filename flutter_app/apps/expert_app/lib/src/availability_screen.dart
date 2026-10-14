@@ -133,9 +133,9 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
         _saving = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.lamsa.scheduleSaved)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.lamsa.scheduleSaved)));
       }
     } on ApiFailure catch (failure) {
       if (!mounted) return;
@@ -510,8 +510,7 @@ class _IntervalDialogState extends State<_IntervalDialog> {
               if (endError != null) return endError;
               final start = _startController.text.trim();
               if (isValidClockTime(start) &&
-                  clockToMinutes(value!.trim()) <=
-                      clockToMinutes(start)) {
+                  clockToMinutes(value!.trim()) <= clockToMinutes(start)) {
                 return context.lamsa.endMustBeAfterStart;
               }
               return null;
@@ -612,8 +611,7 @@ class _ExceptionDialogState extends State<_ExceptionDialog> {
       int.parse(todayParts[1]),
       int.parse(todayParts[2]),
     );
-    final initial =
-        parseLocalDate(_dateController.text.trim()) ?? today;
+    final initial = parseLocalDate(_dateController.text.trim()) ?? today;
     final initialDate = DateTime(initial.year, initial.month, initial.day);
     final picked = await showDatePicker(
       context: context,
@@ -689,42 +687,41 @@ class _ExceptionDialogState extends State<_ExceptionDialog> {
               value: _fullDay,
               onChanged: (value) => setState(() => _fullDay = value),
             ),
-                if (!_fullDay) ...[
-                  TextFormField(
-                    key: const ValueKey('exception-start'),
-                    controller: _startController,
-                    keyboardType: TextInputType.datetime,
-                    textDirection: TextDirection.ltr,
-                    decoration: InputDecoration(
-                      labelText: context.lamsa.startTime,
-                      hintText: '09:00',
-                    ),
-                    validator: (value) => _clockError(context, value),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    key: const ValueKey('exception-end'),
-                    controller: _endController,
-                    keyboardType: TextInputType.datetime,
-                    textDirection: TextDirection.ltr,
-                    decoration: InputDecoration(
-                      labelText: context.lamsa.endTime,
-                      hintText: '12:00',
-                    ),
-                    validator: (value) {
-                      final endError = _clockError(context, value);
-                      if (endError != null) return endError;
-                      final start = _startController.text.trim();
-                      if (isValidClockTime(start) &&
-                          clockToMinutes(value!.trim()) <=
-                              clockToMinutes(start)) {
-                        return context.lamsa.endMustBeAfterStart;
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                ],
+            if (!_fullDay) ...[
+              TextFormField(
+                key: const ValueKey('exception-start'),
+                controller: _startController,
+                keyboardType: TextInputType.datetime,
+                textDirection: TextDirection.ltr,
+                decoration: InputDecoration(
+                  labelText: context.lamsa.startTime,
+                  hintText: '09:00',
+                ),
+                validator: (value) => _clockError(context, value),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const ValueKey('exception-end'),
+                controller: _endController,
+                keyboardType: TextInputType.datetime,
+                textDirection: TextDirection.ltr,
+                decoration: InputDecoration(
+                  labelText: context.lamsa.endTime,
+                  hintText: '12:00',
+                ),
+                validator: (value) {
+                  final endError = _clockError(context, value);
+                  if (endError != null) return endError;
+                  final start = _startController.text.trim();
+                  if (isValidClockTime(start) &&
+                      clockToMinutes(value!.trim()) <= clockToMinutes(start)) {
+                    return context.lamsa.endMustBeAfterStart;
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
               key: const ValueKey('exception-reason'),
               controller: _reasonController,

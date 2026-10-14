@@ -127,10 +127,7 @@ void main() {
     await tester.tap(find.text('إضافة استثناء').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('تاريخ غير صالح، تحققي من الشهر واليوم'),
-      findsOneWidget,
-    );
+    expect(find.text('تاريخ غير صالح، تحققي من الشهر واليوم'), findsOneWidget);
     expect(gateway.addedDate, isNull);
 
     await tester.enterText(
@@ -140,10 +137,7 @@ void main() {
     await tester.tap(find.text('إضافة استثناء').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('تاريخ غير صالح، تحققي من الشهر واليوم'),
-      findsOneWidget,
-    );
+    expect(find.text('تاريخ غير صالح، تحققي من الشهر واليوم'), findsOneWidget);
     expect(gateway.addedDate, isNull);
   });
 
@@ -186,10 +180,7 @@ void main() {
     await tester.tap(find.text('إضافة فترة').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('استخدمي صيغة HH:MM بصيغة 24 ساعة'),
-      findsOneWidget,
-    );
+    expect(find.text('استخدمي صيغة HH:MM بصيغة 24 ساعة'), findsOneWidget);
     expect(gateway.saved, isNull);
 
     await tester.enterText(
@@ -199,10 +190,7 @@ void main() {
     await tester.tap(find.text('إضافة فترة').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('استخدمي صيغة HH:MM بصيغة 24 ساعة'),
-      findsOneWidget,
-    );
+    expect(find.text('استخدمي صيغة HH:MM بصيغة 24 ساعة'), findsOneWidget);
     expect(gateway.saved, isNull);
   });
 
@@ -224,14 +212,14 @@ void main() {
       find.byKey(const ValueKey('exception-start')),
       '14:00',
     );
-    await tester.enterText(find.byKey(const ValueKey('exception-end')), '12:00');
+    await tester.enterText(
+      find.byKey(const ValueKey('exception-end')),
+      '12:00',
+    );
     await tester.tap(find.text('إضافة استثناء').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('وقت النهاية يجب أن يكون بعد البداية.'),
-      findsOneWidget,
-    );
+    expect(find.text('وقت النهاية يجب أن يكون بعد البداية.'), findsOneWidget);
     expect(gateway.addedDate, isNull);
   });
 
@@ -256,10 +244,7 @@ void main() {
     await tester.tap(find.text('إضافة استثناء').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('استخدمي صيغة HH:MM بصيغة 24 ساعة'),
-      findsOneWidget,
-    );
+    expect(find.text('استخدمي صيغة HH:MM بصيغة 24 ساعة'), findsOneWidget);
     expect(gateway.addedDate, isNull);
   });
 
@@ -303,7 +288,10 @@ void main() {
       find.byKey(const ValueKey('exception-start')),
       '10:00',
     );
-    await tester.enterText(find.byKey(const ValueKey('exception-end')), '12:00');
+    await tester.enterText(
+      find.byKey(const ValueKey('exception-end')),
+      '12:00',
+    );
     await tester.tap(find.text('إضافة استثناء').last);
     await tester.pumpAndSettle();
 

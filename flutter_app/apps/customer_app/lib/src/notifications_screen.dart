@@ -33,7 +33,8 @@ class CustomerNotificationsScreen extends StatefulWidget {
 }
 
 class _CustomerNotificationsScreenState
-    extends State<CustomerNotificationsScreen> with WidgetsBindingObserver {
+    extends State<CustomerNotificationsScreen>
+    with WidgetsBindingObserver {
   List<AppNotification> _items = const [];
   int _unread = 0;
   bool _unreadOnly = false;
@@ -91,10 +92,7 @@ class _CustomerNotificationsScreenState
     });
     try {
       final results = await Future.wait([
-        widget.notifications.notifications(
-          unreadOnly: unreadOnly,
-          page: page,
-        ),
+        widget.notifications.notifications(unreadOnly: unreadOnly, page: page),
         widget.notifications.unreadCount(),
       ]);
       if (!_isCurrentNotificationsRequest(generation, unreadOnly)) return;
@@ -157,9 +155,7 @@ class _CustomerNotificationsScreenState
   }
 
   bool _isCurrentNotificationsRequest(int generation, bool unreadOnly) =>
-      mounted &&
-      generation == _requestGeneration &&
-      unreadOnly == _unreadOnly;
+      mounted && generation == _requestGeneration && unreadOnly == _unreadOnly;
 
   Future<void> _markAllRead() async {
     try {
@@ -167,15 +163,15 @@ class _CustomerNotificationsScreenState
       if (mounted) _reload();
     } on ApiFailure catch (failure) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.message)));
       }
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.lamsa.tryAgain)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.lamsa.tryAgain)));
       }
     }
   }

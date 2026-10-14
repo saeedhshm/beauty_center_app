@@ -73,18 +73,16 @@ final earningApiProvider = Provider<EarningGateway>(
   (ref) => EarningApi(ref.watch(authenticatedApiClientProvider)),
 );
 
-final pushRegistrarProvider = Provider<PushRegistrar>(
-  (ref) {
-    final registrar = PushRegistrar(
-      provider: FirebasePushProvider(),
-      gateway: ref.watch(notificationApiProvider),
-    );
-    ref.onDispose(() async {
-      await registrar.dispose();
-    });
-    return registrar;
-  },
-);
+final pushRegistrarProvider = Provider<PushRegistrar>((ref) {
+  final registrar = PushRegistrar(
+    provider: FirebasePushProvider(),
+    gateway: ref.watch(notificationApiProvider),
+  );
+  ref.onDispose(() async {
+    await registrar.dispose();
+  });
+  return registrar;
+});
 
 /// Bridges session transitions to the device-token lifecycle. Permission is
 /// requested only after a real login; logout removes the token best-effort.
@@ -102,7 +100,6 @@ final pushSyncProvider = Provider<void>((ref) {
     await sync.dispose();
   });
 });
-
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final session = ref.watch(sessionManagerProvider);

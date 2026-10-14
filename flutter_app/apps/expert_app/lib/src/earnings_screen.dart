@@ -81,10 +81,7 @@ class _ExpertEarningsScreenState extends State<ExpertEarningsScreen>
     try {
       final results = await Future.wait([
         widget.earnings.earnings(),
-        widget.earnings.payouts(
-          transferred: transferred,
-          page: page,
-        ),
+        widget.earnings.payouts(transferred: transferred, page: page),
       ]);
       if (!_isCurrentEarningsRequest(generation, transferred)) return;
       final fetched = results[1] as CatalogPage<ExpertPayout>;
@@ -133,13 +130,11 @@ class _ExpertEarningsScreenState extends State<ExpertEarningsScreen>
         _hasNext = fetched.hasNext;
       });
     } catch (error) {
-      if (_isCurrentEarningsRequest(generation, transferred) &&
-          _page == page) {
+      if (_isCurrentEarningsRequest(generation, transferred) && _page == page) {
         setState(() => _error = error);
       }
     } finally {
-      if (_isCurrentEarningsRequest(generation, transferred) &&
-          _page == page) {
+      if (_isCurrentEarningsRequest(generation, transferred) && _page == page) {
         setState(() => _loadingMore = false);
       }
     }
@@ -396,10 +391,7 @@ class _PayoutSheetState extends State<_PayoutSheet> {
                     textAlign: TextAlign.right,
                   ),
                   subtitle: Text(
-                    formatBookingDateTime(
-                      booking.startsAt,
-                      booking.timeZone,
-                    ),
+                    formatBookingDateTime(booking.startsAt, booking.timeZone),
                   ),
                 ),
             ],

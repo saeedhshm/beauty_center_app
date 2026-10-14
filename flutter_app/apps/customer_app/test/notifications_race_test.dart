@@ -60,22 +60,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('notification-seed')), findsOneWidget);
 
-    gateway.gates['true|1'] = Queue.of([Completer<CatalogPage<AppNotification>>()]);
+    gateway.gates['true|1'] = Queue.of([
+      Completer<CatalogPage<AppNotification>>(),
+    ]);
     await tester.tap(find.byKey(const ValueKey('notifications-unread-only')));
     await tester.pump();
 
     gateway.gates['true|1'] = Queue.of([
-      Completer<CatalogPage<AppNotification>>()..complete(
-        pageOf([item('n-new')]),
-      ),
+      Completer<CatalogPage<AppNotification>>()
+        ..complete(pageOf([item('n-new')])),
     ]);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('notification-n-new')), findsOneWidget);
 
-    gateway.consumedGates['true|1']!.first.complete(
-      pageOf([item('n-old')]),
-    );
+    gateway.consumedGates['true|1']!.first.complete(pageOf([item('n-old')]));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('notification-n-new')), findsOneWidget);
@@ -105,9 +104,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('notifications-unread-only')));
     await tester.pumpAndSettle();
 
-    gateway.consumedGates['false|2']!.first.complete(
-      pageOf([item('a2')]),
-    );
+    gateway.consumedGates['false|2']!.first.complete(pageOf([item('a2')]));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('notification-u1')), findsOneWidget);
@@ -130,9 +127,8 @@ void main() {
     await tester.pump();
 
     gateway.gates['true|1'] = Queue.of([
-      Completer<CatalogPage<AppNotification>>()..complete(
-        pageOf([item('n-second')]),
-      ),
+      Completer<CatalogPage<AppNotification>>()
+        ..complete(pageOf([item('n-second')])),
     ]);
     // The newer refresh also carries its own unread count.
     gateway.countGates.add(Completer<int>()..complete(7));
@@ -161,7 +157,9 @@ void main() {
     await pumpList(tester, gateway);
     await tester.pumpAndSettle();
 
-    gateway.gates['true|1'] = Queue.of([Completer<CatalogPage<AppNotification>>()]);
+    gateway.gates['true|1'] = Queue.of([
+      Completer<CatalogPage<AppNotification>>(),
+    ]);
     await tester.tap(find.byKey(const ValueKey('notifications-unread-only')));
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsWidgets);

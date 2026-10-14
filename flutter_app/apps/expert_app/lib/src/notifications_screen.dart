@@ -96,15 +96,15 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
       if (mounted) _load();
     } on ApiFailure catch (failure) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(failure.message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(failure.message)));
       }
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.lamsa.tryAgain)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.lamsa.tryAgain)));
       }
     }
   }

@@ -5,7 +5,6 @@ import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 import 'package:uuid/uuid.dart';
 
-
 const _visibleStatuses = [
   'pending',
   'accepted',
@@ -94,10 +93,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
       _error = null;
     });
     try {
-      final result = await widget.bookings.bookings(
-        status: status,
-        page: page,
-      );
+      final result = await widget.bookings.bookings(status: status, page: page);
       if (!_isCurrentBookingsRequest(generation, status)) return;
       setState(() {
         _items = reset ? result.items : [..._items, ...result.items];
@@ -153,9 +149,7 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
   }
 
   bool _isCurrentBookingsRequest(int generation, String? status) =>
-      mounted &&
-      generation == _requestGeneration &&
-      status == _status;
+      mounted && generation == _requestGeneration && status == _status;
 
   @override
   Widget build(BuildContext context) {
@@ -168,7 +162,8 @@ class _CustomerBookingsScreenState extends State<CustomerBookingsScreen>
     }
     if (_error != null && _items.isEmpty) {
       return LamsaStatusView(
-        status: _error is ApiFailure &&
+        status:
+            _error is ApiFailure &&
                 (_error! as ApiFailure).kind == ApiFailureKind.forbidden
             ? LamsaStatus.forbidden
             : LamsaStatus.error,
@@ -368,9 +363,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
       await widget.bookings.complete(booking.id);
       if (!mounted) return;
       setState(() => _completing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.lamsa.bookingCompleted)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.lamsa.bookingCompleted)));
       await _load();
     } on ApiFailure catch (failure) {
       if (!mounted) return;
@@ -466,9 +461,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
             SnackBar(content: Text(context.lamsa.paymentSettledMessage)),
           );
         } else if (failure.code == 'AMOUNT_MISMATCH') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(failure.message)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(failure.message)));
         }
       } on Object {
         if (mounted) {
@@ -523,7 +518,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
     }
   }
 
-  Future<void> _cancel() async {    final booking = _booking;
+  Future<void> _cancel() async {
+    final booking = _booking;
     if (booking == null || _cancelling) return;
     final reason = await _requestReason(context);
     if (reason == null || !mounted) return;
@@ -539,9 +535,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
         _cancelling = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.lamsa.bookingCancelled)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.lamsa.bookingCancelled)));
       }
       await _load();
     } on ApiFailure catch (failure) {
@@ -607,10 +603,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                         (_booking!.isPending || _booking!.isAccepted))
                       _row(
                         context.lamsa.pendingExpiry,
-                        formatBookingTime(_booking!.expiresAt!, _booking!.timeZone),
+                        formatBookingTime(
+                          _booking!.expiresAt!,
+                          _booking!.timeZone,
+                        ),
                       ),
-                    if (_booking!.notes != null &&
-                        _booking!.notes!.isNotEmpty)
+                    if (_booking!.notes != null && _booking!.notes!.isNotEmpty)
                       _row(context.lamsa.notesOptional, _booking!.notes!),
                     if (_booking!.cancellationReason != null &&
                         _booking!.cancellationReason!.isNotEmpty)
@@ -720,7 +718,8 @@ Future<String?> _requestReason(BuildContext context) async {
   return reason;
 }
 
-class _ReasonDialog extends StatefulWidget {  const _ReasonDialog();
+class _ReasonDialog extends StatefulWidget {
+  const _ReasonDialog();
 
   @override
   State<_ReasonDialog> createState() => _ReasonDialogState();
@@ -911,10 +910,8 @@ class _ReviewSection extends StatelessWidget {
         .firstOrNull;
     final other = reviews
         .where(
-          (item) => !item.isMine(
-            viewerIsCustomer: true,
-            viewerId: currentUserId,
-          ),
+          (item) =>
+              !item.isMine(viewerIsCustomer: true, viewerId: currentUserId),
         )
         .firstOrNull;
     return Column(

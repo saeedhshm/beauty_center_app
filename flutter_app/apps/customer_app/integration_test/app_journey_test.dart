@@ -18,7 +18,10 @@ import 'package:lamsa_networking/lamsa_networking.dart';
 /// deep-links are out of scope. Runs only with LAMSA_E2E_BASE_URL set,
 /// otherwise skips. Synthetic fixtures only.
 String get _base {
-  const defined = String.fromEnvironment('LAMSA_E2E_BASE_URL', defaultValue: '');
+  const defined = String.fromEnvironment(
+    'LAMSA_E2E_BASE_URL',
+    defaultValue: '',
+  );
   if (defined.isNotEmpty) return defined;
   return Platform.environment['LAMSA_E2E_BASE_URL'] ?? '';
 }
@@ -40,8 +43,7 @@ void main() {
 
       // 1. Register an expert and a customer through the real auth API.
       Future<AuthSession> register(String suffix, String role) async {
-        final unique =
-            (stamp * 1000 + (suffix == '001' ? 11 : 22)) % 100000000;
+        final unique = (stamp * 1000 + (suffix == '001' ? 11 : 22)) % 100000000;
         final phone = '+2010${unique.toString().padLeft(8, '0')}';
         final setupAuth = AuthApi(
           ApiClient(
@@ -98,9 +100,11 @@ void main() {
       );
       final services = await CatalogApi(expertClient).services(limit: 50);
       expect(services.items, isNotEmpty);
-      await ExpertWorkspaceApi(
-        expertClient,
-      ).upsertService(serviceId: services.items.first.id, price: '300.50', isActive: true);
+      await ExpertWorkspaceApi(expertClient).upsertService(
+        serviceId: services.items.first.id,
+        price: '300.50',
+        isActive: true,
+      );
       await AvailabilityApi(expertClient).replaceWeekly([
         for (var day = 1; day <= 7; day++)
           WeeklySlot(dayOfWeek: day, startTime: '09:00', endTime: '21:00'),
@@ -176,8 +180,7 @@ class _StaticAuth implements ApiAuthenticator {
   Future<String?> accessToken() async => token;
 
   @override
-  Future<String?> refreshAccessToken({String? failedAccessToken}) async =>
-      null;
+  Future<String?> refreshAccessToken({String? failedAccessToken}) async => null;
 
   @override
   Future<void> sessionExpired() async {}

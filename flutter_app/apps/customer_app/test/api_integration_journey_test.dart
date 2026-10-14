@@ -14,10 +14,7 @@ import 'package:uuid/uuid.dart';
 /// (real widgets + real backend). Run only with LAMSA_E2E_BASE_URL set (e.g.
 /// a local backend pointed at lamsa_e2e), otherwise this file skips.
 /// Synthetic fixtures only.
-const _baseUrl = String.fromEnvironment(
-  'LAMSA_E2E_BASE_URL',
-  defaultValue: '',
-);
+const _baseUrl = String.fromEnvironment('LAMSA_E2E_BASE_URL', defaultValue: '');
 
 String get _base {
   final fromEnv = Platform.environment['LAMSA_E2E_BASE_URL'];
@@ -37,8 +34,7 @@ void main() {
       final stamp = DateTime.now().millisecondsSinceEpoch % 100000;
 
       Future<AuthSession> register(String suffix, String role) async {
-        final unique =
-            (stamp * 1000 + (suffix == '001' ? 11 : 22)) % 100000000;
+        final unique = (stamp * 1000 + (suffix == '001' ? 11 : 22)) % 100000000;
         final phone = '+2010${unique.toString().padLeft(8, '0')}';
         final challenge = await auth.requestRegistrationOtp(phone);
         return auth.register(
@@ -116,9 +112,7 @@ void main() {
       final slot = days.first.slots.first;
 
       // 6. Address inside Cairo + booking creation with idempotency.
-      final addresses = AddressApi(
-        _client(dio, customerSession.accessToken),
-      );
+      final addresses = AddressApi(_client(dio, customerSession.accessToken));
       final address = await addresses.create(
         label: 'home',
         addressText: 'E2E synthetic address',
@@ -211,8 +205,7 @@ class _StaticAuth implements ApiAuthenticator {
   Future<String?> accessToken() async => token;
 
   @override
-  Future<String?> refreshAccessToken({String? failedAccessToken}) async =>
-      null;
+  Future<String?> refreshAccessToken({String? failedAccessToken}) async => null;
 
   @override
   Future<void> sessionExpired() async {}

@@ -130,10 +130,7 @@ class NotificationApi implements NotificationGateway {
 
   @override
   Future<void> removeDevice(String id) async {
-    await _client.delete<Object?>(
-      '/api/v1/devices/$id',
-      authenticated: true,
-    );
+    await _client.delete<Object?>('/api/v1/devices/$id', authenticated: true);
   }
 
   @override

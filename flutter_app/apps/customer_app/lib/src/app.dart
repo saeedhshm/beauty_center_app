@@ -70,18 +70,16 @@ final notificationApiProvider = Provider<NotificationGateway>(
   (ref) => NotificationApi(ref.watch(authenticatedApiClientProvider)),
 );
 
-final pushRegistrarProvider = Provider<PushRegistrar>(
-  (ref) {
-    final registrar = PushRegistrar(
-      provider: FirebasePushProvider(),
-      gateway: ref.watch(notificationApiProvider),
-    );
-    ref.onDispose(() async {
-      await registrar.dispose();
-    });
-    return registrar;
-  },
-);
+final pushRegistrarProvider = Provider<PushRegistrar>((ref) {
+  final registrar = PushRegistrar(
+    provider: FirebasePushProvider(),
+    gateway: ref.watch(notificationApiProvider),
+  );
+  ref.onDispose(() async {
+    await registrar.dispose();
+  });
+  return registrar;
+});
 
 /// Binds [SessionManager] transitions to the device-token lifecycle through
 /// [PushSessionSync], which subscribes to the manager itself (a plain

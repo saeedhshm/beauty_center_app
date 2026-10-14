@@ -84,9 +84,9 @@ class SlotDay {
     final raw = json['slots'];
     final items = raw is List<Object?>
         ? raw
-            .whereType<JsonObject>()
-            .map(ExpertSlot.fromJson)
-            .toList(growable: false)
+              .whereType<JsonObject>()
+              .map(ExpertSlot.fromJson)
+              .toList(growable: false)
         : const <ExpertSlot>[];
     return SlotDay(date: json['date'] as String, slots: items);
   }
@@ -223,7 +223,9 @@ class AvailabilityApi implements AvailabilityGateway {
       authenticated: true,
     );
     final data = body['data'];
-    if (data is! JsonObject) throw const FormatException('Invalid API response');
+    if (data is! JsonObject) {
+      throw const FormatException('Invalid API response');
+    }
     return AvailabilityExceptionItem.fromJson(data);
   }
 

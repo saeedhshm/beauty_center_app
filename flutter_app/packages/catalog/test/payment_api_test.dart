@@ -36,8 +36,7 @@ void main() {
 
   test('failed attempts carry the provider reason', () {
     final payment = BookingPayment.fromJson(
-      paymentJson(status: 'failed')
-        ..['failureReason'] = 'PROVIDER_DECLINED',
+      paymentJson(status: 'failed')..['failureReason'] = 'PROVIDER_DECLINED',
     );
     expect(payment.isFailed, isTrue);
     expect(payment.failureReason, 'PROVIDER_DECLINED');

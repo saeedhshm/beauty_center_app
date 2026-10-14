@@ -73,9 +73,7 @@ void main() {
     );
     expect(adapter.last.path, '/api/v1/bookings');
     final sent = adapter.last.data;
-    final payload = sent is String
-        ? jsonDecode(sent) as Map
-        : sent as Map;
+    final payload = sent is String ? jsonDecode(sent) as Map : sent as Map;
     expect(payload['notes'], isNull);
   });
 
@@ -109,8 +107,7 @@ class TestAuthenticator implements ApiAuthenticator {
   Future<String?> accessToken() async => 'access-token';
 
   @override
-  Future<String?> refreshAccessToken({String? failedAccessToken}) async =>
-      null;
+  Future<String?> refreshAccessToken({String? failedAccessToken}) async => null;
 
   @override
   Future<void> sessionExpired() async {}

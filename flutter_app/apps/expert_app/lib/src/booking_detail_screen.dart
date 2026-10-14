@@ -88,12 +88,8 @@ class _ExpertBookingDetailScreenState extends State<ExpertBookingDetailScreen> {
                         _booking!.timeZone,
                       ),
                     ),
-                    _row(
-                      context.lamsa.customerAddress,
-                      _booking!.addressText,
-                    ),
-                    if (_booking!.notes != null &&
-                        _booking!.notes!.isNotEmpty)
+                    _row(context.lamsa.customerAddress, _booking!.addressText),
+                    if (_booking!.notes != null && _booking!.notes!.isNotEmpty)
                       _row(context.lamsa.notes, _booking!.notes!),
                     if (_booking!.cancellationReason != null &&
                         _booking!.cancellationReason!.isNotEmpty)

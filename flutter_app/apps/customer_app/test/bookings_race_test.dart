@@ -75,17 +75,14 @@ void main() {
     expect(find.byKey(const ValueKey('booking-seed')), findsOneWidget);
 
     // Old request for the new filter starts first and stays gated.
-    gateway.gates['pending|1'] = Queue.of([
-      Completer<CatalogPage<Booking>>(),
-    ]);
+    gateway.gates['pending|1'] = Queue.of([Completer<CatalogPage<Booking>>()]);
     await tester.tap(find.byKey(const ValueKey('bookings-filter-pending')));
     await tester.pump();
 
     // Newer refresh of the same filter resolves first.
     gateway.gates['pending|1'] = Queue.of([
-      Completer<CatalogPage<Booking>>()..complete(
-        pageOf([booking('p-new', 'pending')]),
-      ),
+      Completer<CatalogPage<Booking>>()
+        ..complete(pageOf([booking('p-new', 'pending')])),
     ]);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
@@ -103,10 +100,7 @@ void main() {
     tester,
   ) async {
     final gateway = _RaceBookingsGateway();
-    gateway.pages['null|1'] = pageOf(
-      [booking('a1', 'pending')],
-      hasNext: true,
-    );
+    gateway.pages['null|1'] = pageOf([booking('a1', 'pending')], hasNext: true);
     gateway.pages['pending|1'] = pageOf([booking('p1', 'pending')]);
 
     await pumpList(tester, gateway);
@@ -138,16 +132,13 @@ void main() {
     await pumpList(tester, gateway);
     await tester.pumpAndSettle();
 
-    gateway.gates['pending|1'] = Queue.of([
-      Completer<CatalogPage<Booking>>(),
-    ]);
+    gateway.gates['pending|1'] = Queue.of([Completer<CatalogPage<Booking>>()]);
     await tester.tap(find.byKey(const ValueKey('bookings-filter-pending')));
     await tester.pump();
 
     gateway.gates['pending|1'] = Queue.of([
-      Completer<CatalogPage<Booking>>()..complete(
-        pageOf([booking('p-second', 'pending')]),
-      ),
+      Completer<CatalogPage<Booking>>()
+        ..complete(pageOf([booking('p-second', 'pending')])),
     ]);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
@@ -171,9 +162,7 @@ void main() {
     await pumpList(tester, gateway);
     await tester.pumpAndSettle();
 
-    gateway.gates['pending|1'] = Queue.of([
-      Completer<CatalogPage<Booking>>(),
-    ]);
+    gateway.gates['pending|1'] = Queue.of([Completer<CatalogPage<Booking>>()]);
     await tester.tap(find.byKey(const ValueKey('bookings-filter-pending')));
     await tester.pump();
     // Still loading the current request: spinner visible, no error.
@@ -201,7 +190,7 @@ class _RaceBookingsGateway implements BookingGateway {
   final gates = <String, Queue<Completer<CatalogPage<Booking>>>>{};
 
   /// Gates already consumed, for tests to complete out of order.
-  final consumedGates = <String, List<Completer<CatalogPage<Booking>>>> {};
+  final consumedGates = <String, List<Completer<CatalogPage<Booking>>>>{};
   final pages = <String, CatalogPage<Booking>>{};
   final calls = <String>[];
 

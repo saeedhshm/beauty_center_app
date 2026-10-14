@@ -10,10 +10,7 @@ void main() {
     final gateway = _BookingGateway();
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(1),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(1)),
       ),
     );
     await tester.pumpAndSettle();
@@ -30,10 +27,7 @@ void main() {
     final gateway = _BookingGateway(status: 'confirmed');
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(2),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(2)),
       ),
     );
     await tester.pumpAndSettle();
@@ -46,10 +40,7 @@ void main() {
     final gateway = _BookingGateway(status: 'completed');
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(3),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(3)),
       ),
     );
     await tester.pumpAndSettle();
@@ -68,10 +59,7 @@ void main() {
     );
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(4),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(4)),
       ),
     );
     await tester.pumpAndSettle();
@@ -93,10 +81,7 @@ void main() {
     );
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(8),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(8)),
       ),
     );
     await tester.pumpAndSettle();
@@ -113,10 +98,7 @@ void main() {
     final gateway = _BookingGateway(status: 'confirmed');
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(9),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(9)),
       ),
     );
     await tester.pumpAndSettle();
@@ -128,9 +110,7 @@ void main() {
     expect(find.textContaining('10:00'), findsWidgets);
   });
 
-  testWidgets('unowned booking shows a safe not-found message', (
-    tester,
-  ) async {
+  testWidgets('unowned booking shows a safe not-found message', (tester) async {
     final gateway = _BookingGateway(
       failure: const ApiFailure(
         kind: ApiFailureKind.notFound,
@@ -140,10 +120,7 @@ void main() {
     );
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(5),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(5)),
       ),
     );
     await tester.pumpAndSettle();
@@ -168,18 +145,12 @@ void main() {
     );
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(6),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(6)),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('انتهت الجلسة، سجلي الدخول مجددًا'),
-      findsOneWidget,
-    );
+    expect(find.text('انتهت الجلسة، سجلي الدخول مجددًا'), findsOneWidget);
   });
 
   testWidgets('forbidden booking shows access-denied', (tester) async {
@@ -192,10 +163,7 @@ void main() {
     );
     await tester.pumpWidget(
       _app(
-        ExpertBookingDetailScreen(
-          bookings: gateway,
-          bookingId: _bookingId(7),
-        ),
+        ExpertBookingDetailScreen(bookings: gateway, bookingId: _bookingId(7)),
       ),
     );
     await tester.pumpAndSettle();

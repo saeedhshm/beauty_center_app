@@ -88,8 +88,7 @@ Widget _app(Widget child) => MaterialApp(
 
 /// Deterministic valid UUIDs: the notification validator only accepts
 /// well-formed `lamsa://booking/<uuid>` references.
-String _bookingId(int n) =>
-    '00000000-0000-4000-8000-00000000000$n';
+String _bookingId(int n) => '00000000-0000-4000-8000-00000000000$n';
 
 AppNotification _item(String id, {required String? bookingId}) =>
     AppNotification(

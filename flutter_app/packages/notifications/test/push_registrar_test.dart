@@ -46,18 +46,21 @@ void main() {
     await registrar.dispose();
   });
 
-  test('logout deletes locally and removes the server row best-effort', () async {
-    final provider = _PushProvider(token: 'device-token');
-    final gateway = _NotificationGateway();
-    final registrar = PushRegistrar(provider: provider, gateway: gateway);
-    await registrar.syncOnLogin();
+  test(
+    'logout deletes locally and removes the server row best-effort',
+    () async {
+      final provider = _PushProvider(token: 'device-token');
+      final gateway = _NotificationGateway();
+      final registrar = PushRegistrar(provider: provider, gateway: gateway);
+      await registrar.syncOnLogin();
 
-    await registrar.syncOnLogout();
+      await registrar.syncOnLogout();
 
-    expect(provider.deleted, isTrue);
-    expect(gateway.removed, ['device-1']);
-    expect(registrar.serverDeviceId, isNull);
-  });
+      expect(provider.deleted, isTrue);
+      expect(gateway.removed, ['device-1']);
+      expect(registrar.serverDeviceId, isNull);
+    },
+  );
 
   test('server removal keeps local state for the caller to clear', () async {
     final provider = _PushProvider(token: 'device-token');

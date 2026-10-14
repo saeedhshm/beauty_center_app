@@ -25,14 +25,13 @@ void main() {
     bool hasNext = false,
   }) => CatalogPage(items: items, page: 1, limit: 20, hasNext: hasNext);
 
-  EarningsSummary summaryOf(String eligibleAmount) =>
-      EarningsSummary.fromJson({
-        'eligible': [
-          {'currency': 'EGP', 'amount': eligibleAmount},
-        ],
-        'recorded': [],
-        'transferred': [],
-      });
+  EarningsSummary summaryOf(String eligibleAmount) => EarningsSummary.fromJson({
+    'eligible': [
+      {'currency': 'EGP', 'amount': eligibleAmount},
+    ],
+    'recorded': [],
+    'transferred': [],
+  });
 
   Future<void> pumpScreen(
     WidgetTester tester,
@@ -63,9 +62,7 @@ void main() {
     final oldPage = Completer<CatalogPage<ExpertPayout>>();
     gateway.summaries.add(() => oldSummary.future);
     gateway.gates['false|1'] = Queue.of([oldPage]);
-    await tester.tap(
-      find.byKey(const ValueKey('transfers-filter-recorded')),
-    );
+    await tester.tap(find.byKey(const ValueKey('transfers-filter-recorded')));
     await tester.pump();
 
     gateway.summaries.add(() => Future.value(summaryOf('20.00')));
@@ -97,7 +94,9 @@ void main() {
     await pumpScreen(tester, gateway);
     await tester.pumpAndSettle();
 
-    gateway.gates['null|2'] = Queue.of([Completer<CatalogPage<ExpertPayout>>()]);
+    gateway.gates['null|2'] = Queue.of([
+      Completer<CatalogPage<ExpertPayout>>(),
+    ]);
     await tester.ensureVisible(find.byKey(const Key('payouts-load-more')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('payouts-load-more')));
@@ -108,9 +107,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    gateway.consumedGates['null|2']!.first.complete(
-      pageOf([payout('a2')]),
-    );
+    gateway.consumedGates['null|2']!.first.complete(pageOf([payout('a2')]));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('payout-u1')), findsOneWidget);
@@ -130,9 +127,7 @@ void main() {
     final oldPage = Completer<CatalogPage<ExpertPayout>>();
     gateway.summaries.add(() => oldSummary.future);
     gateway.gates['false|1'] = Queue.of([oldPage]);
-    await tester.tap(
-      find.byKey(const ValueKey('transfers-filter-recorded')),
-    );
+    await tester.tap(find.byKey(const ValueKey('transfers-filter-recorded')));
     await tester.pump();
 
     gateway.summaries.add(() => Future.value(summaryOf('20.00')));
@@ -193,8 +188,7 @@ class _RaceEarningGateway implements EarningGateway {
   final gates = <String, Queue<Completer<CatalogPage<ExpertPayout>>>>{};
 
   /// Gates already consumed, for tests to complete out of order.
-  final consumedGates =
-      <String, List<Completer<CatalogPage<ExpertPayout>>>>{};
+  final consumedGates = <String, List<Completer<CatalogPage<ExpertPayout>>>>{};
   final pages = <String, CatalogPage<ExpertPayout>>{};
 
   @override
@@ -210,10 +204,7 @@ class _RaceEarningGateway implements EarningGateway {
   }
 
   @override
-  Future<CatalogPage<ExpertPayout>> payouts({
-    bool? transferred,
-    int page = 1,
-  }) {
+  Future<CatalogPage<ExpertPayout>> payouts({bool? transferred, int page = 1}) {
     final key = '$transferred|$page';
     final queue = gates[key];
     if (queue != null && queue.isNotEmpty) {

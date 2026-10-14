@@ -112,31 +112,33 @@ void main() {
     manager.dispose();
   });
 
-  test('expired session clears local state safely without server calls',
-      () async {
-    final auth = _AuthGateway(session: testSession());
-    final manager = testManager(auth);
-    final provider = _PushProvider(initialToken: 'device-token');
-    final gateway = _NotificationGateway();
-    final sync = PushSessionSync(
-      manager: manager,
-      registrar: testRegistrar(provider, gateway),
-    );
-    sync.attach();
-    await manager.login(phone: '+201000000000', password: 'password-12345');
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(gateway.registered, ['device-token']);
+  test(
+    'expired session clears local state safely without server calls',
+    () async {
+      final auth = _AuthGateway(session: testSession());
+      final manager = testManager(auth);
+      final provider = _PushProvider(initialToken: 'device-token');
+      final gateway = _NotificationGateway();
+      final sync = PushSessionSync(
+        manager: manager,
+        registrar: testRegistrar(provider, gateway),
+      );
+      sync.attach();
+      await manager.login(phone: '+201000000000', password: 'password-12345');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(gateway.registered, ['device-token']);
 
-    // The credential is now unusable: only local cleanup may run.
-    await manager.sessionExpired();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      // The credential is now unusable: only local cleanup may run.
+      await manager.sessionExpired();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(manager.isAuthenticated, isFalse);
-    expect(gateway.removed, isEmpty);
-    expect(provider.deleted, isTrue);
-    await sync.dispose();
-    manager.dispose();
-  });
+      expect(manager.isAuthenticated, isFalse);
+      expect(gateway.removed, isEmpty);
+      expect(provider.deleted, isTrue);
+      await sync.dispose();
+      manager.dispose();
+    },
+  );
 
   test('rotation replaces the registration without a stale row', () async {
     final auth = _AuthGateway(session: testSession());

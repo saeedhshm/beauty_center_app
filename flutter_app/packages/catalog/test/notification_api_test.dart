@@ -35,23 +35,14 @@ void main() {
       final link = parseBookingLink(
         Uri.parse('lamsa://booking/11111111-2222-4333-8444-555555555555'),
       );
-      expect(
-        link?.bookingId,
-        '11111111-2222-4333-8444-555555555555',
-      );
+      expect(link?.bookingId, '11111111-2222-4333-8444-555555555555');
     });
 
     test('rejects other schemes, hosts, and shapes', () {
       expect(parseBookingLink(Uri.parse('https://booking/b1')), isNull);
-      expect(
-        parseBookingLink(Uri.parse('lamsa://booking/not-a-uuid')),
-        isNull,
-      );
+      expect(parseBookingLink(Uri.parse('lamsa://booking/not-a-uuid')), isNull);
       expect(parseBookingLink(Uri.parse('lamsa://booking/')), isNull);
-      expect(
-        parseBookingLink(Uri.parse('lamsa://booking/b1/extra')),
-        isNull,
-      );
+      expect(parseBookingLink(Uri.parse('lamsa://booking/b1/extra')), isNull);
       expect(
         parseBookingLink(
           Uri.parse(

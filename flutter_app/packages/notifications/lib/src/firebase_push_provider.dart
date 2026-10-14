@@ -7,8 +7,7 @@ import 'push_provider.dart';
 /// "unavailable" when native configuration files are missing, so the apps
 /// keep working (without instant push) until configuration lands.
 class FirebasePushProvider implements PushProvider {
-  FirebasePushProvider([FirebaseMessaging? messaging])
-    : _messaging = messaging;
+  FirebasePushProvider([FirebaseMessaging? messaging]) : _messaging = messaging;
 
   final FirebaseMessaging? _messaging;
   bool _ready = false;

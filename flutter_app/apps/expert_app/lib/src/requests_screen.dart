@@ -170,16 +170,16 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
       await widget.bookings.accept(booking.id);
       if (!mounted) return;
       setState(() => _mutatingId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.lamsa.bookingAccepted)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.lamsa.bookingAccepted)));
       await _reloadSections({_SectionKind.pending, _SectionKind.accepted});
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() => _mutatingId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_conflictMessage(failure))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_conflictMessage(failure))));
       await _reloadSections({_SectionKind.pending, _SectionKind.accepted});
     } on Object {
       if (mounted) setState(() => _mutatingId = null);
@@ -199,16 +199,16 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
       await widget.bookings.reject(booking.id, reason: reasonText);
       if (!mounted) return;
       setState(() => _mutatingId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.lamsa.bookingRejected)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.lamsa.bookingRejected)));
       await _reloadSections({_SectionKind.pending});
     } on ApiFailure catch (failure) {
       if (!mounted) return;
       setState(() => _mutatingId = null);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_conflictMessage(failure))),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_conflictMessage(failure))));
       await _reloadSections({_SectionKind.pending});
     } on Object {
       if (mounted) setState(() => _mutatingId = null);
@@ -219,8 +219,9 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
     if (!mounted) return failure.message;
     return switch (failure.code) {
       'BOOKING_EXPIRED' => context.lamsa.requestExpired,
-      'SLOT_TAKEN' || 'EXPERT_UNAVAILABLE' || 'SLOT_UNAVAILABLE' =>
-        context.lamsa.slotLost,
+      'SLOT_TAKEN' ||
+      'EXPERT_UNAVAILABLE' ||
+      'SLOT_UNAVAILABLE' => context.lamsa.slotLost,
       'INVALID_TRANSITION' => context.lamsa.bookingStateChanged,
       _ => failure.message,
     };
@@ -273,8 +274,7 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
               status: LamsaStatus.empty,
               title: context.lamsa.bookingRequests,
               message: context.lamsa.noPendingRequests,
-              onRetry: () =>
-                  _reloadSections({_SectionKind.pending}),
+              onRetry: () => _reloadSections({_SectionKind.pending}),
             ),
           for (final booking in section.items)
             Card(
@@ -290,15 +290,11 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      formatBookingDateTime(
-                        booking.startsAt,
-                        booking.timeZone,
-                      ),
+                      formatBookingDateTime(booking.startsAt, booking.timeZone),
                       textDirection: TextDirection.ltr,
                       textAlign: TextAlign.right,
                     ),
-                    if (booking.notes != null &&
-                        booking.notes!.isNotEmpty) ...[
+                    if (booking.notes != null && booking.notes!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Text(booking.notes!),
                     ],
@@ -359,14 +355,9 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 key: ValueKey('$name-${booking.id}'),
-                title: Text(
-                  '${booking.totalAmount} ${booking.currency}',
-                ),
+                title: Text('${booking.totalAmount} ${booking.currency}'),
                 subtitle: Text(
-                  formatBookingDateTime(
-                    booking.startsAt,
-                    booking.timeZone,
-                  ),
+                  formatBookingDateTime(booking.startsAt, booking.timeZone),
                   textDirection: TextDirection.ltr,
                 ),
                 trailing: kind == _SectionKind.confirmed
@@ -400,7 +391,9 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
   Widget _sectionError(_SectionKind kind) {
     final section = _sections[kind]!;
     final error = section.error!;
-    final message = error is ApiFailure ? error.message : context.lamsa.tryAgain;
+    final message = error is ApiFailure
+        ? error.message
+        : context.lamsa.tryAgain;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -408,10 +401,7 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              message,
-              key: ValueKey('error-${kind.name}'),
-            ),
+            Text(message, key: ValueKey('error-${kind.name}')),
             const SizedBox(height: 8),
             TextButton(
               key: ValueKey('retry-${kind.name}'),
@@ -431,8 +421,7 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
       padding: const EdgeInsets.only(bottom: 8),
       child: OutlinedButton(
         key: ValueKey('load-more-${kind.name}'),
-        onPressed:
-            section.loadingMore ? null : () => _loadMore(kind),
+        onPressed: section.loadingMore ? null : () => _loadMore(kind),
         child: section.loadingMore
             ? const SizedBox(
                 width: 16,
@@ -545,9 +534,9 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
         _completing = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.lamsa.bookingCompleted)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(context.lamsa.bookingCompleted)));
       }
     } on ApiFailure catch (failure) {
       if (!mounted) return;
@@ -635,17 +624,12 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
               ),
               const SizedBox(height: 4),
               Text(
-                formatBookingDateTime(
-                  _booking.startsAt,
-                  _booking.timeZone,
-                ),
+                formatBookingDateTime(_booking.startsAt, _booking.timeZone),
                 textDirection: TextDirection.ltr,
                 textAlign: TextAlign.right,
               ),
               const SizedBox(height: 8),
-              Text(
-                '${context.lamsa.customerAddress}: ${_booking.addressText}',
-              ),
+              Text('${context.lamsa.customerAddress}: ${_booking.addressText}'),
               if (_booking.notes != null && _booking.notes!.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(_booking.notes!),
@@ -676,9 +660,9 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
                       dense: true,
                       title: Text(
                         review.isMine(
-                          viewerIsCustomer: false,
-                          viewerId: widget.currentUserId,
-                        )
+                              viewerIsCustomer: false,
+                              viewerId: widget.currentUserId,
+                            )
                             ? '${context.lamsa.myReview}: ${'★' * review.rating}'
                             : '${context.lamsa.otherPartyReview}: ${'★' * review.rating}',
                       ),
@@ -699,9 +683,7 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
                                 ? null
                                 : () => setState(() => _rating = star),
                             icon: Icon(
-                              star <= _rating
-                                  ? Icons.star
-                                  : Icons.star_border,
+                              star <= _rating ? Icons.star : Icons.star_border,
                             ),
                           ),
                       ],

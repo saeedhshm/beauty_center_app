@@ -10,7 +10,9 @@ import 'package:lamsa_networking/lamsa_networking.dart';
 void main() {
   testWidgets('accept waits for the server then reloads', (tester) async {
     final gateway = _BookingGateway(items: [_pending('b1')]);
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('مقبول'), findsNothing);
@@ -24,7 +26,9 @@ void main() {
 
   testWidgets('reject sends the reason and reloads', (tester) async {
     final gateway = _BookingGateway(items: [_pending('b2')]);
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('request-reject-b2')));
@@ -50,7 +54,9 @@ void main() {
         message: 'expired',
       ),
     );
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('request-accept-b3')));
@@ -62,7 +68,9 @@ void main() {
 
   testWidgets('empty inbox is explicit', (tester) async {
     final gateway = _BookingGateway(items: const []);
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('لا توجد طلبات معلقة حاليًا.'), findsOneWidget);
@@ -74,7 +82,9 @@ void main() {
     final gateway = _BookingGateway(
       items: [_pending('p1'), _pending('p2'), _pending('p3')],
     );
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('request-accept-p1')), findsOneWidget);
@@ -91,10 +101,10 @@ void main() {
 
     expect(find.byKey(const ValueKey('request-accept-p3')), findsOneWidget);
     expect(find.byKey(const ValueKey('load-more-pending')), findsNothing);
-    expect(
-      gateway.pageCalls.where((call) => call.$1 == 'pending').toList(),
-      [('pending', 1), ('pending', 2)],
-    );
+    expect(gateway.pageCalls.where((call) => call.$1 == 'pending').toList(), [
+      ('pending', 1),
+      ('pending', 2),
+    ]);
   });
 
   testWidgets('sections page independently without mixing results', (
@@ -110,7 +120,9 @@ void main() {
         _accepted('a3'),
       ],
     );
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
@@ -131,7 +143,9 @@ void main() {
     final gateway = _BookingGateway(items: const []);
     final first = Completer<CatalogPage<Booking>>();
     gateway.deferred['pending'] = {1: first};
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pump();
 
     // Refresh while the first pending fetch is still in flight.
@@ -153,7 +167,9 @@ void main() {
     tester,
   ) async {
     final gateway = _BookingGateway(items: [_pending('b1')]);
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('request-accept-b1')), findsOneWidget);
@@ -174,7 +190,9 @@ void main() {
       code: 'FAILED',
       message: 'تعذر التحميل',
     );
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
     await tester.pumpAndSettle();
 
     // Pending still renders while accepted shows its own error + retry.
@@ -196,13 +214,10 @@ void main() {
   testWidgets('accepted bookings show read-only awaiting payment', (
     tester,
   ) async {
-    final gateway = _BookingGateway(
-      items: [
-        _pending('b1'),
-        _accepted('b9'),
-      ],
+    final gateway = _BookingGateway(items: [_pending('b1'), _accepted('b9')]);
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
     );
-    await tester.pumpWidget(_app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())));
     await tester.pumpAndSettle();
 
     expect(find.text('مقبول بانتظار الدفع'), findsOneWidget);
@@ -213,9 +228,7 @@ void main() {
   testWidgets('confirmed sheet completes then reviews the customer', (
     tester,
   ) async {
-    final gateway = _BookingGateway(
-      items: [_confirmed('b7')],
-    );
+    final gateway = _BookingGateway(items: [_confirmed('b7')]);
     final reviews = _ExpertReviewsGateway();
     await tester.pumpWidget(
       _app(
@@ -251,9 +264,7 @@ void main() {
     expect(find.text('شكرًا! سُجل تقييمك.'), findsOneWidget);
   });
 
-  testWidgets('third party review is rejected without leaking', (
-    tester,
-  ) async {
+  testWidgets('third party review is rejected without leaking', (tester) async {
     final reviews = _ExpertReviewsGateway()
       ..failSubmitWith = const ApiFailure(
         kind: ApiFailureKind.notFound,
@@ -290,7 +301,8 @@ void main() {
 CatalogPage<Booking> _page(List<Booking> items) =>
     CatalogPage(items: items, page: 1, limit: 2, hasNext: false);
 
-Booking _accepted(String id) => Booking(  id: id,
+Booking _accepted(String id) => Booking(
+  id: id,
   customerId: 'c1',
   expertId: 'e1',
   serviceId: 7,
@@ -356,8 +368,7 @@ class _ReviewGateway implements ReviewGateway {
     String bookingId, {
     required int rating,
     String? comment,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
 
   @override
   Future<List<BookingReview>> forBooking(String bookingId) async => const [];
@@ -458,14 +469,20 @@ class _BookingGateway implements BookingGateway {
     if (gate != null) return gate.future;
     final failure = sectionErrors[status ?? ''];
     if (failure != null) throw failure;
-    final matching =
-        items.where((item) => status == null || item.status == status).toList();
+    final matching = items
+        .where((item) => status == null || item.status == status)
+        .toList();
     final extra = extraPages[status] ?? const [];
     final all = [...matching, for (final chunk in extra) ...chunk];
     const limit = 2;
     final start = (page - 1) * limit;
     if (start >= all.length) {
-      return CatalogPage(items: const [], page: page, limit: limit, hasNext: false);
+      return CatalogPage(
+        items: const [],
+        page: page,
+        limit: limit,
+        hasNext: false,
+      );
     }
     final end = (start + limit).clamp(0, all.length);
     return CatalogPage(
@@ -483,10 +500,7 @@ class _BookingGateway implements BookingGateway {
   Future<Booking> accept(String id) async {
     if (acceptError != null) throw acceptError!;
     accepted.add(id);
-    items = [
-      for (final item in items)
-        item.id == id ? _accepted(id) : item,
-    ];
+    items = [for (final item in items) item.id == id ? _accepted(id) : item];
     return _accepted(id);
   }
 
