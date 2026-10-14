@@ -478,11 +478,14 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
   @override
   Widget build(BuildContext context) {
     final completed = _booking.status == BookingStates.completed;
-    final mine = widget.currentUserId == null
-        ? null
-        : _reviews
-              .where((item) => item.reviewerId == widget.currentUserId)
-              .firstOrNull;
+    final mine = _reviews
+        .where(
+          (item) => item.isMine(
+            viewerIsCustomer: false,
+            viewerId: widget.currentUserId,
+          ),
+        )
+        .firstOrNull;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
@@ -539,7 +542,10 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
                       contentPadding: EdgeInsets.zero,
                       dense: true,
                       title: Text(
-                        review.reviewerId == widget.currentUserId
+                        review.isMine(
+                          viewerIsCustomer: false,
+                          viewerId: widget.currentUserId,
+                        )
                             ? '${context.lamsa.myReview}: ${'★' * review.rating}'
                             : '${context.lamsa.otherPartyReview}: ${'★' * review.rating}',
                       ),

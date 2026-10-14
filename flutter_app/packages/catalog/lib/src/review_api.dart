@@ -8,20 +8,35 @@ class BookingReview {
   const BookingReview({
     required this.id,
     required this.bookingId,
-    required this.reviewerId,
-    required this.revieweeId,
     required this.rating,
-    required this.comment,
     required this.createdAt,
+    this.reviewerId,
+    this.revieweeId,
+    this.comment,
+    this.fromCustomer,
   });
 
   final String id;
   final String bookingId;
-  final String reviewerId;
-  final String revieweeId;
   final int rating;
-  final String? comment;
   final String createdAt;
+  final String? reviewerId;
+  final String? revieweeId;
+  final String? comment;
+  final bool? fromCustomer;
+
+  /// True for the review the current viewer wrote. The public list carries
+  /// no account ids by design, so role-relative `fromCustomer` decides,
+  /// falling back to id comparison when ids are present.
+  bool isMine({required bool viewerIsCustomer, String? viewerId}) {
+    if (viewerId != null && reviewerId != null) {
+      return reviewerId == viewerId;
+    }
+    if (fromCustomer != null) {
+      return viewerIsCustomer ? fromCustomer! : !fromCustomer!;
+    }
+    return false;
+  }
 
   factory BookingReview.fromJson(JsonObject json) {
     int requiredInt(String key) {
@@ -38,14 +53,16 @@ class BookingReview {
       return value;
     }
 
+    final fromCustomer = json['fromCustomer'];
     return BookingReview(
       id: requiredString('id'),
-      bookingId: requiredString('bookingId'),
-      reviewerId: requiredString('reviewerId'),
-      revieweeId: requiredString('revieweeId'),
+      bookingId: (json['bookingId'] as String?) ?? '',
       rating: requiredInt('rating'),
-      comment: json['comment'] as String?,
       createdAt: requiredString('createdAt'),
+      reviewerId: json['reviewerId'] as String?,
+      revieweeId: json['revieweeId'] as String?,
+      comment: json['comment'] as String?,
+      fromCustomer: fromCustomer is bool ? fromCustomer : null,
     );
   }
 }

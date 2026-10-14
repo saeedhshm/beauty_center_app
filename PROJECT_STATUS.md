@@ -451,7 +451,16 @@ migrations وبيانات الاختبارات في المراجعة الحال�
 - **الملفات الأساسية**: `packages/catalog` (`earning_api.dart` + اختباران)، `expert_app` (`earnings_screen.dart` + 3 اختبارات + تبويب سابع)، `localization` (نصوص A9).
 - **APIs الحقيقية**: `GET /experts/me/earnings` و`GET /experts/me/payouts` و`GET /experts/me/payouts/:id` — بلا تغيير Backend. الملكية والخصوصية خادميًا (404 لغير المالكة) ومُغطاة باختبارات Backend (`payouts.test.ts`)؛ اختبارات الويدجت بـfakes للعرض فقط.
 - **التحقق**: expert analyze نظيف وtest 22/22؛ catalog 32/32؛ localization 3/3؛ `git diff --check` نظيف.
-- **المتبقي**: A10 (التقوية والاستعداد) — بلا staging ولا signing حقيقي. لا production-ready ولا deploy.
+- **المتبقي**: A10 (التقوية والاستعداد) — نفذت أدناه. لا production-ready ولا deploy.
+
+## تطبيقات الهاتف — A10: التقوية والاستعداد للإصدار (2026-10-14)
+
+- **بوابة البيئة**: لا staging — سُجل عائقًا صريحًا. نُفذت رحلة E2E محلية معزولة بدلها (`customer_app/test/e2e_journey_test.dart`، تُتجاوز دون `LAMSA_E2E_BASE_URL`): قاعدة `lamsa_e2e` جديدة + migrations + تهيئة مدير وخدمة اصطناعية، ثم تسجيل الطرفين واعتماد الخبيرة والتوفر والمواعيد والعنوان والحجز والقبول والدفع والتأكيد والإكمال والتقييم المتبادل وأهلية المستحقات والتنبيهات وحل رابط عميق — **ناجحة**، ثم أُوقف الخادم وحُذفت القاعدة. ببيانات اصطناعية فقط.
+- **إصلاحان كشفتهما الرحلة**: سجل الحالات يستخدم `createdAt` لا `changedAt` (عُدل المحلل)، وقائمة التقييمات العامة بلا هويات حسابات (خصوصية مقصودة — التمييز عبر `fromCustomer` النسبي للدور بدلها).
+- **التقوية**: لا `print/debugPrint` في كود التطبيقات/الحزم؛ لا مفاتيح أو أسرار (لا firebase config ولا APNs ولا بطاقات)؛ RTL وlabels دلالية وأهداف لمس موجودة؛ العملة والتوقيت من الخادم (القاهرة عبر tzdb)؛ `APP_ENV` ببيئات ثلاث وHTTPS مفروض لغير التطوير؛ لا analytics/crash جديدة؛ التوكنات في الذاكرة والتخزين الآمن فقط. `flutter_app/README.md` حُدث (النطاق A2→A10، إجراء E2E، ملاحظات الإصدار).
+- **البناءات**: APK وiOS simulator debug للتطبيقين ناجحة (أُعيد تشغيلها ضمن A8 بعد Firebase وبقيت صالحة)؛ release/signing يتطلبان تفويضًا وبيانات اعتماد — لم تُنفذ.
+- **التحقق**: customer analyze نظيف وtest 38/38 (+E2E حي ناجح و1 متجاوز افتراضيًا)؛ expert 22/22؛ catalog 32/32؛ notifications 5/5؛ localization 3/3؛ authentication 10/10؛ networking 9/9؛ design 2/2؛ backend بلا تغيير في A4–A10 (آخر فحص كامل أخضر)؛ `git diff --check` نظيف.
+- **المخاطر المتبقية**: بلا staging؛ استلام Push الفوري محجوب حتى ملفات Firebase؛ الدفع Demo فقط؛ بلا نسخ احتياطي مجدول. **ليست production-ready ولا deploy.**
 
 ## توحيد أيقونة لمسة (2026-10-12)
 

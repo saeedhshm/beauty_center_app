@@ -24,11 +24,18 @@ class BookingStatusEntry {
   final String changedAt;
   final String? changedBy;
 
-  factory BookingStatusEntry.fromJson(JsonObject json) => BookingStatusEntry(
-    status: json['status'] as String,
-    changedAt: json['changedAt'] as String,
-    changedBy: json['changedBy'] as String?,
-  );
+  factory BookingStatusEntry.fromJson(JsonObject json) {
+    final created = json['createdAt'] ?? json['changedAt'];
+    final status = json['status'];
+    if (created is! String || status is! String) {
+      throw const FormatException('Invalid API response');
+    }
+    return BookingStatusEntry(
+      status: status,
+      changedAt: created,
+      changedBy: json['changedBy'] as String?,
+    );
+  }
 }
 
 /// A booking snapshot. Every amount, deadline, and state comes from the

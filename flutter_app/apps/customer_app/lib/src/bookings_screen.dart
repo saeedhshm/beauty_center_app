@@ -877,16 +877,20 @@ class _ReviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mine = currentUserId == null
-        ? null
-        : reviews
-              .where((item) => item.reviewerId == currentUserId)
-              .firstOrNull;
-    final other = currentUserId == null
-        ? null
-        : reviews
-              .where((item) => item.reviewerId != currentUserId)
-              .firstOrNull;
+    final mine = reviews
+        .where(
+          (item) =>
+              item.isMine(viewerIsCustomer: true, viewerId: currentUserId),
+        )
+        .firstOrNull;
+    final other = reviews
+        .where(
+          (item) => !item.isMine(
+            viewerIsCustomer: true,
+            viewerId: currentUserId,
+          ),
+        )
+        .firstOrNull;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -900,7 +904,7 @@ class _ReviewSection extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             dense: true,
             title: Text(
-              '${context.lamsa.myReview}: ${'★' * mine.rating}${'☆' * (5 - mine.rating)}',
+              '${context.lamsa.myReview}: ${'★' * mine.rating.toInt()}${'☆' * (5 - mine.rating.toInt())}',
             ),
             subtitle: mine.comment != null && mine.comment!.isNotEmpty
                 ? Text(mine.comment!)
@@ -911,7 +915,7 @@ class _ReviewSection extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             dense: true,
             title: Text(
-              '${context.lamsa.otherPartyReview}: ${'★' * other.rating}${'☆' * (5 - other.rating)}',
+              '${context.lamsa.otherPartyReview}: ${'★' * other.rating.toInt()}${'☆' * (5 - other.rating.toInt())}',
             ),
             subtitle: other.comment != null && other.comment!.isNotEmpty
                 ? Text(other.comment!)

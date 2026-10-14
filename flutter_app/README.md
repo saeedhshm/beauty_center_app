@@ -1,15 +1,17 @@
 # تطبيقات لمسة
 
-يحتوي هذا المجلد على تطبيقين Flutter مستقلين وحزم مشتركة منفذة حتى المرحلة `A2`:
+يحتوي هذا المجلد على تطبيقين Flutter مستقلين وحزم مشتركة منفذة حتى المرحلة `A10`:
 
-- `apps/customer_app`: تطبيق العميلة.
-- `apps/expert_app`: تطبيق الخبيرة.
+- `apps/customer_app`: تطبيق العميلة (كتالوج، مواعيد، حجوزات، دفع Demo، إكمال، تقييم، تنبيهات).
+- `apps/expert_app`: تطبيق الخبيرة (ملف، خدمات، معرض، توفر، طلبات، إكمال، تقييم، تنبيهات، مستحقات).
 - `packages/design_system`: الهوية البصرية والمكونات والحالات العامة.
 - `packages/localization`: النصوص المركزية ودعم العربية والإنجليزية.
 - `packages/networking`: إعداد البيئة وعميل API وتصنيف الأخطاء ومراقبة الشبكة.
 - `packages/authentication`: عقد المصادقة والجلسة والتخزين الآمن وواجهات الحساب المشتركة.
+- `packages/catalog`: عقود الكتالوج والحجوزات والدفع والتقييم والمستحقات والتنبيهات والروابط.
+- `packages/notifications`: تسجيل Device Token عبر Firebase (يتدهور بصمت بلا إعداد).
 
-تتضمن `A2` التسجيل عبر OTP والدخول والاستعادة والملف والخروج، واستكمال ملف الخبيرة ووثيقتها وعرض حالة الاعتماد. لا تتضمن خدمات أو توفرًا أو حجوزات أو دفعًا أو Push.
+الرحلة الأساسية مكتملة للطرفين: تسجيل → اعتماد → توفر → موعد → حجز → قبول → دفع Demo → تأكيد → إكمال → تقييم متبادل → مستحقات (للخبيرة) وتنبيهات. الدفع Demo موسوم بلا أموال حقيقية، واستلام Push الفوري محجوب حتى ملفات إعداد Firebase.
 
 ## المتطلبات
 
@@ -49,3 +51,33 @@ flutter test
 flutter build apk --debug --dart-define=APP_ENV=development
 flutter build ios --simulator --debug --dart-define=APP_ENV=development
 ```
+
+## رحلة E2E المحلية (ليست staging)
+
+لا توجد بيئة staging. تُشغل الرحلة الأساسية ضد Backend محلي وقاعدة معزولة
+(`apps/customer_app/test/e2e_journey_test.dart`، يُتجاوز دون المتغير):
+
+```sh
+# 1. قاعدة معزولة + migrations (على خادم اختبار Postgres المحلي)
+psql -h 127.0.0.1 -p 55433 -U lamsa_test -d lamsa_test \
+  -c "DROP DATABASE IF EXISTS lamsa_e2e;" -c "CREATE DATABASE lamsa_e2e;"
+cd ../../web_app/backend
+DATABASE_URL=postgresql://lamsa_test:lamsa_test@127.0.0.1:55433/lamsa_e2e npm run db:migrate
+# 2. تهيئة مدير وخدمة (بيانات اصطناعية فقط)، ثم تشغيل API على 3100
+# 3. من apps/customer_app:
+LAMSA_E2E_BASE_URL=http://127.0.0.1:3100 flutter test test/e2e_journey_test.dart
+# 4. إيقاف الخادم وحذف lamsa_e2e بعد الانتهاء
+```
+
+تغطي الرحلة: تسجيل الطرفين، اعتماد الخبيرة، التوفر، المواعيد، العنوان، إنشاء
+الحجز، القبول، الدفع والتأكيد، الإكمال، التقييم المتبادل، أهلية المستحقات،
+التنبيهات، وحل رابط عميق — ببيانات اصطناعية فقط.
+
+## ملاحظات الإصدار
+
+- لا أسرار في المستودع: لا `google-services.json` ولا `GoogleService-Info.plist`
+  ولا مفاتيح APNs ولا بيانات بطاقات؛ التوكنات في الذاكرة والتخزين الآمن فقط.
+- لا رفع للمتاجر ولا production deploy ولا توقيع release دون تفويض صريح.
+- `APP_ENV=production` يتطلب `API_BASE_URL` بـHTTPS (مفروض في `AppConfig`).
+- استلام Push الفوري محجوب حتى توفير ملفات إعداد Firebase ومفتاح APNs.
+- ليست `production-ready`: بلا staging ولا نسخ احتياطي مجدول ولا مزودي دفع/إشعارات حقيقيين.
