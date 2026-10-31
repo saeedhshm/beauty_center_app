@@ -3,6 +3,7 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
+import 'package:lamsa_notifications/lamsa_notifications.dart';
 
 import 'bookings_screen.dart';
 
@@ -34,133 +35,45 @@ class CustomerNotificationsScreen extends StatefulWidget {
 
 class _CustomerNotificationsScreenState
     extends State<CustomerNotificationsScreen>
-    with WidgetsBindingObserver {
-  List<AppNotification> _items = const [];
-  int _unread = 0;
-  bool _unreadOnly = false;
-  int _page = 1;
-  bool _hasNext = false;
-  bool _loading = true;
-  bool _loadingMore = false;
-  Object? _error;
-  int _requestGeneration = 0;
+    with
+        WidgetsBindingObserver,
+        NotificationFeedController<CustomerNotificationsScreen> {
+  @override
+  NotificationGateway get notificationsGateway => widget.notifications;
 
   @override
   void initState() {
     super.initState();
-    widget.refreshSignal?.addListener(_reload);
+    widget.refreshSignal?.addListener(feedReload);
     WidgetsBinding.instance.addObserver(this);
-    _load();
+    feedReload();
   }
 
   @override
   void didUpdateWidget(covariant CustomerNotificationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshSignal != widget.refreshSignal) {
-      oldWidget.refreshSignal?.removeListener(_reload);
-      widget.refreshSignal?.addListener(_reload);
+      oldWidget.refreshSignal?.removeListener(feedReload);
+      widget.refreshSignal?.addListener(feedReload);
     }
   }
 
   @override
   void dispose() {
-    widget.refreshSignal?.removeListener(_reload);
+    widget.refreshSignal?.removeListener(feedReload);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _reload();
+    if (state == AppLifecycleState.resumed) feedReload();
   }
-
-  Future<void> _reload() => _load(reset: true);
-
-  Future<void> _load({bool reset = false}) async {
-    final generation = reset ? ++_requestGeneration : _requestGeneration;
-    final unreadOnly = _unreadOnly;
-    final page = reset ? 1 : _page;
-    if (!mounted) return;
-    setState(() {
-      if (reset) {
-        _page = 1;
-        _items = const [];
-        _loadingMore = false;
-      }
-      _loading = reset || _items.isEmpty;
-      _error = null;
-    });
-    try {
-      final results = await Future.wait([
-        widget.notifications.notifications(unreadOnly: unreadOnly, page: page),
-        widget.notifications.unreadCount(),
-      ]);
-      if (!_isCurrentNotificationsRequest(generation, unreadOnly)) return;
-      final fetched = results[0] as CatalogPage<AppNotification>;
-      setState(() {
-        _items = reset ? fetched.items : [..._items, ...fetched.items];
-        _page = fetched.page;
-        _hasNext = fetched.hasNext;
-        _unread = results[1] as int;
-        _loading = false;
-      });
-    } catch (error) {
-      if (_isCurrentNotificationsRequest(generation, unreadOnly)) {
-        setState(() {
-          _error = error;
-          _loading = false;
-        });
-      }
-    } finally {
-      if (_isCurrentNotificationsRequest(generation, unreadOnly)) {
-        setState(() => _loading = false);
-      }
-    }
-  }
-
-  Future<void> _loadMore() async {
-    final generation = _requestGeneration;
-    final unreadOnly = _unreadOnly;
-    final page = _page;
-    if (_loadingMore || !_hasNext) return;
-    setState(() {
-      _loadingMore = true;
-      _error = null;
-    });
-    try {
-      final fetched = await widget.notifications.notifications(
-        unreadOnly: unreadOnly,
-        page: page + 1,
-      );
-      if (!_isCurrentNotificationsRequest(generation, unreadOnly) ||
-          _page != page) {
-        return;
-      }
-      setState(() {
-        _items = [..._items, ...fetched.items];
-        _page = fetched.page;
-        _hasNext = fetched.hasNext;
-      });
-    } catch (error) {
-      if (_isCurrentNotificationsRequest(generation, unreadOnly) &&
-          _page == page) {
-        setState(() => _error = error);
-      }
-    } finally {
-      if (_isCurrentNotificationsRequest(generation, unreadOnly) &&
-          _page == page) {
-        setState(() => _loadingMore = false);
-      }
-    }
-  }
-
-  bool _isCurrentNotificationsRequest(int generation, bool unreadOnly) =>
-      mounted && generation == _requestGeneration && unreadOnly == _unreadOnly;
 
   Future<void> _markAllRead() async {
     try {
       await widget.notifications.markAllRead();
-      if (mounted) _reload();
+      if (mounted) feedReload();
     } on ApiFailure catch (failure) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -185,8 +98,21 @@ class _CustomerNotificationsScreenState
       }
     }
     if (!mounted) return;
-    if (item.bookingId == null) {
-      _reload();
+    // Same contract as the deep link and as the expert app: a reference that
+    // is not a booking id never navigates and never triggers a fetch.
+    final rawBookingId = item.bookingId?.trim();
+    final bookingId = rawBookingId != null && isValidBookingId(rawBookingId)
+        ? rawBookingId
+        : null;
+    if (bookingId == null) {
+      if (item.bookingId != null && mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.lamsa.invalidBookingLink)),
+        );
+      }
+      feedReload();
       return;
     }
     await Navigator.of(context).push(
@@ -196,34 +122,34 @@ class _CustomerNotificationsScreenState
           payments: widget.payments,
           reviews: widget.reviews,
           currentUserId: widget.currentUserId,
-          bookingId: item.bookingId!,
+          bookingId: bookingId,
         ),
       ),
     );
-    if (mounted) _reload();
+    if (mounted) feedReload();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading && _error == null && _items.isEmpty) {
+    if (feedLoading && feedError == null && feedItems.isEmpty) {
       return LamsaStatusView(
         status: LamsaStatus.loading,
         title: context.lamsa.notifications,
         message: context.lamsa.loadingNotifications,
       );
     }
-    if (_error != null && _items.isEmpty) {
+    if (feedError != null && feedItems.isEmpty) {
       return LamsaStatusView(
         status: LamsaStatus.error,
         title: context.lamsa.notifications,
-        message: _error is ApiFailure
-            ? (_error! as ApiFailure).message
+        message: feedError is ApiFailure
+            ? (feedError! as ApiFailure).message
             : context.lamsa.tryAgain,
-        onRetry: _reload,
+        onRetry: feedReload,
       );
     }
     return RefreshIndicator(
-      onRefresh: _reload,
+      onRefresh: feedReload,
       child: ListView(
         padding: const EdgeInsets.all(LamsaSpacing.lg),
         children: [
@@ -232,17 +158,14 @@ class _CustomerNotificationsScreenState
               FilterChip(
                 key: const ValueKey('notifications-unread-only'),
                 label: Text(context.lamsa.unreadOnly),
-                selected: _unreadOnly,
-                onSelected: (value) {
-                  setState(() => _unreadOnly = value);
-                  _reload();
-                },
+                selected: feedUnreadOnly,
+                onSelected: feedSetUnreadOnly,
               ),
               const SizedBox(width: 8),
-              if (_unread > 0)
+              if (feedUnread > 0)
                 Expanded(
                   child: Text(
-                    context.lamsa.unreadCount(_unread),
+                    context.lamsa.unreadCount(feedUnread),
                     textAlign: TextAlign.end,
                   ),
                 ),
@@ -254,14 +177,14 @@ class _CustomerNotificationsScreenState
             ],
           ),
           const SizedBox(height: 8),
-          if (_items.isEmpty)
+          if (feedItems.isEmpty)
             LamsaStatusView(
               status: LamsaStatus.empty,
               title: context.lamsa.notifications,
               message: context.lamsa.noNotifications,
-              onRetry: _reload,
+              onRetry: feedReload,
             ),
-          for (final item in _items)
+          for (final item in feedItems)
             Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
@@ -281,12 +204,33 @@ class _CustomerNotificationsScreenState
                 onTap: () => _open(item),
               ),
             ),
-          if (_hasNext)
+          // A failed page keeps everything already loaded and offers a retry.
+          if (feedPageError != null)
+            Padding(
+              key: const ValueKey('notifications-page-error'),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.lamsa.pageLoadFailed,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    key: const ValueKey('notifications-page-retry'),
+                    onPressed: feedRetryPage,
+                    child: Text(context.lamsa.retry),
+                  ),
+                ],
+              ),
+            ),
+          if (feedHasNext)
             LamsaButton(
               key: const Key('notifications-load-more'),
               label: context.lamsa.loadMore,
-              loading: _loadingMore,
-              onPressed: _loadingMore ? null : _loadMore,
+              loading: feedLoadingMore,
+              onPressed: feedLoadingMore ? null : feedLoadMore,
             ),
         ],
       ),

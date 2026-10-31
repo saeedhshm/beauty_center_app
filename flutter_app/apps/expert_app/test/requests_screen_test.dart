@@ -21,7 +21,7 @@ void main() {
 
     expect(gateway.accepted, ['b1']);
     expect(find.text('قُبل الطلب بانتظار دفع العميلة'), findsOneWidget);
-    expect(gateway.listCalls, 5);
+    expect(gateway.listCalls, 6);
   });
 
   testWidgets('reject sends the reason and reloads', (tester) async {
@@ -63,7 +63,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('انتهت مهلة هذا الطلب.'), findsOneWidget);
-    expect(gateway.listCalls, 5);
+    expect(gateway.listCalls, 6);
   });
 
   testWidgets('empty inbox is explicit', (tester) async {
@@ -76,6 +76,112 @@ void main() {
     expect(find.text('لا توجد طلبات معلقة حاليًا.'), findsOneWidget);
     expect(find.text('لا توجد حجوزات مقبولة بانتظار الدفع.'), findsOneWidget);
     expect(find.text('لا توجد حجوزات مؤكدة حاليًا.'), findsOneWidget);
+    expect(find.text('لا توجد حجوزات مكتملة بعد.'), findsOneWidget);
+  });
+
+  testWidgets('completed section paginates from the server', (tester) async {
+    final gateway = _BookingGateway(
+      items: [_completed('c1'), _completed('c2')],
+    );
+    gateway.extraPages['completed'] = [
+      [_completed('c3')],
+    ];
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('completed-c1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('completed-c2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('completed-c3')), findsNothing);
+    await tester.ensureVisible(find.byKey(const ValueKey('load-more-completed')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('load-more-completed')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('completed-c3')), findsOneWidget);
+    expect(
+      gateway.pageCalls.where((call) => call.$1 == 'completed').toList(),
+      [('completed', 1), ('completed', 2)],
+    );
+  });
+
+  testWidgets('reopening a completed booking refetches fresh detail', (
+    tester,
+  ) async {
+    final gateway = _BookingGateway(items: [_completed('c1')]);
+    gateway.details['c1'] = _completed('c1');
+    await tester.pumpWidget(
+      _app(
+        ExpertRequestsScreen(
+          bookings: gateway,
+          reviews: _ReviewGateway(),
+          currentUserId: 'e1',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const ValueKey('completed-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('completed-c1')));
+    await tester.pumpAndSettle();
+    expect(find.text('تفاصيل الحجز'), findsOneWidget);
+    expect(gateway.detailCalls, 1);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('completed-c1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('completed-c1')));
+    await tester.pumpAndSettle();
+
+    // Each open fetches anew instead of reusing a stale DTO.
+    expect(gateway.detailCalls, 2);
+    expect(find.text('تفاصيل الحجز'), findsOneWidget);
+  });
+
+  testWidgets('completed section shows error with retry', (tester) async {
+    final gateway = _BookingGateway(items: [_pending('p1')]);
+    gateway.sectionErrors['completed'] = const ApiFailure(
+      kind: ApiFailureKind.server,
+      code: 'FAILED',
+      message: 'تعذر التحميل',
+    );
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
+    await tester.pumpAndSettle();
+
+    // Siblings keep working while completed shows its own error.
+    expect(find.byKey(const ValueKey('request-accept-p1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('error-completed')), findsOneWidget);
+    expect(find.byKey(const ValueKey('retry-completed')), findsOneWidget);
+
+    gateway.sectionErrors.remove('completed');
+    await tester.ensureVisible(find.byKey(const ValueKey('retry-completed')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('retry-completed')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('error-completed')), findsNothing);
+    expect(find.text('لا توجد حجوزات مكتملة بعد.'), findsOneWidget);
+  });
+
+  testWidgets('completed section forbidden stays inline', (tester) async {
+    final gateway = _BookingGateway(items: const []);
+    gateway.sectionErrors['completed'] = const ApiFailure(
+      kind: ApiFailureKind.forbidden,
+      code: 'FORBIDDEN',
+      message: 'ممنوع',
+    );
+    await tester.pumpWidget(
+      _app(ExpertRequestsScreen(bookings: gateway, reviews: _ReviewGateway())),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('error-completed')), findsOneWidget);
+    expect(find.text('لا توجد طلبات معلقة حاليًا.'), findsOneWidget);
   });
 
   testWidgets('second pending page appears after load more', (tester) async {
@@ -444,11 +550,14 @@ class _BookingGateway implements BookingGateway {
   final Map<String, List<List<Booking>>> extraPages = {};
   final Map<String, Object> sectionErrors = {};
   final Map<String, Map<int, Completer<CatalogPage<Booking>>>> deferred = {};
+  final Map<String, Booking> details = {};
+  Object? detailError;
   final accepted = <String>[];
   final rejected = <String>[];
   final rejectedReasons = <String?>[];
   final completed = <String>[];
   int listCalls = 0;
+  int detailCalls = 0;
   final List<(String?, int)> pageCalls = [];
 
   @override
@@ -494,7 +603,13 @@ class _BookingGateway implements BookingGateway {
   }
 
   @override
-  Future<Booking> booking(String id) => throw UnimplementedError();
+  Future<Booking> booking(String id) async {
+    detailCalls += 1;
+    if (detailError != null) throw detailError!;
+    final override = details[id];
+    if (override != null) return override;
+    return items.firstWhere((item) => item.id == id);
+  }
 
   @override
   Future<Booking> accept(String id) async {

@@ -355,9 +355,8 @@ class LamsaLocalizations {
       isArabic ? '$minutes دقيقة' : '$minutes minutes';
 
   String get availability => isArabic ? 'التوفر والمواعيد' : 'Availability';
-  String get availabilityLoadFailed => isArabic
-      ? 'تعذر تحميل التوفر'
-      : 'Could not load availability';
+  String get availabilityLoadFailed =>
+      isArabic ? 'تعذر تحميل التوفر' : 'Could not load availability';
   String get loadingAvailability => isArabic
       ? 'جارٍ تحميل الجدول والاستثناءات…'
       : 'Loading schedule and exceptions…';
@@ -367,9 +366,8 @@ class LamsaLocalizations {
   String get invalidTimeFormat => isArabic
       ? 'استخدمي صيغة HH:MM بصيغة 24 ساعة'
       : 'Use HH:MM 24-hour format';
-  String get invalidDateFormat => isArabic
-      ? 'استخدمي صيغة YYYY-MM-DD'
-      : 'Use YYYY-MM-DD format';
+  String get invalidDateFormat =>
+      isArabic ? 'استخدمي صيغة YYYY-MM-DD' : 'Use YYYY-MM-DD format';
   String get invalidRealDate => isArabic
       ? 'تاريخ غير صالح، تحققي من الشهر واليوم'
       : 'Invalid date, check the month and day';
@@ -425,7 +423,8 @@ class LamsaLocalizations {
   String get pastExceptionDate => isArabic
       ? 'الاستثناء يجب أن يكون لتاريخ اليوم أو مستقبل.'
       : 'Exceptions must be for today or a future date.';
-  String get appointmentSlots => isArabic ? 'المواعيد المتاحة' : 'Available slots';
+  String get appointmentSlots =>
+      isArabic ? 'المواعيد المتاحة' : 'Available slots';
   String get selectDay => isArabic ? 'اختاري اليوم' : 'Select a day';
   String get selectService => isArabic ? 'اختاري الخدمة' : 'Select a service';
   String get noSlots => isArabic ? 'لا توجد مواعيد' : 'No slots';
@@ -435,15 +434,13 @@ class LamsaLocalizations {
   String get slotsRefreshed => isArabic
       ? 'حُدثت المواعيد من الخادم.'
       : 'Slots refreshed from the server.';
-  String get cairoTimeNote => isArabic
-      ? 'كل الأوقات بتوقيت القاهرة.'
-      : 'All times are Cairo time.';
+  String get cairoTimeNote =>
+      isArabic ? 'كل الأوقات بتوقيت القاهرة.' : 'All times are Cairo time.';
   String get myBookings => isArabic ? 'حجوزاتي' : 'My bookings';
   String get all => isArabic ? 'الكل' : 'All';
   String get bookingStatus => isArabic ? 'الحالة' : 'Status';
-  String get loadingBookings => isArabic
-      ? 'جارٍ تحميل الحجوزات…'
-      : 'Loading bookings…';
+  String get loadingBookings =>
+      isArabic ? 'جارٍ تحميل الحجوزات…' : 'Loading bookings…';
   String get loadingBooking =>
       isArabic ? 'جارٍ تحميل الحجز…' : 'Loading booking…';
   String get appointmentTime => isArabic ? 'الموعد' : 'Appointment';
@@ -454,16 +451,15 @@ class LamsaLocalizations {
       isArabic ? 'سبب الإلغاء' : 'Cancellation reason';
   String get commission => isArabic ? 'العمولة' : 'Commission';
   String get tax => isArabic ? 'الضريبة' : 'Tax';
-  String get pendingExpiry =>
-      isArabic ? 'ينتهي التعليق في' : 'Pending until';
+  String get pendingExpiry => isArabic ? 'ينتهي التعليق في' : 'Pending until';
   String get bookingDetail => isArabic ? 'تفاصيل الحجز' : 'Booking details';
   String get bookingNotFound => isArabic
       ? 'الحجز غير موجود أو لا تملكين صلاحية عرضه'
       : 'Booking not found or not shared with you';
-  String get invalidBookingLink => isArabic
-      ? 'رابط التنبيه غير صالح'
-      : 'This notification link is invalid';
-  String get noBookings => isArabic ? 'لا توجد حجوزات بعد.' : 'No bookings yet.';
+  String get invalidBookingLink =>
+      isArabic ? 'رابط التنبيه غير صالح' : 'This notification link is invalid';
+  String get noBookings =>
+      isArabic ? 'لا توجد حجوزات بعد.' : 'No bookings yet.';
   String get noBookingsHint => isArabic
       ? 'اختاري خبيرة وموعدًا من الكتالوج لإنشاء أول حجز.'
       : 'Pick an expert and a slot from the catalog to create a booking.';
@@ -475,7 +471,8 @@ class LamsaLocalizations {
   String get notesOptional =>
       isArabic ? 'ملاحظات (اختياري)' : 'Notes (optional)';
   String get notes => isArabic ? 'ملاحظات' : 'Notes';
-  String get confirmBooking => isArabic ? 'تأكيد إرسال الطلب' : 'Confirm request';
+  String get confirmBooking =>
+      isArabic ? 'تأكيد إرسال الطلب' : 'Confirm request';
   String get bookingCreated =>
       isArabic ? 'أُرسل طلب الحجز إلى الخبيرة' : 'Booking request sent';
   String get bookingExpiryNote => isArabic
@@ -490,9 +487,8 @@ class LamsaLocalizations {
   String get bookingCancelled => isArabic ? 'أُلغي الحجز' : 'Booking cancelled';
   String get statusHistory => isArabic ? 'سجل الحالات' : 'Status history';
   String get bookingRequests => isArabic ? 'طلبات الحجز' : 'Booking requests';
-  String get acceptedAwaitingPayment => isArabic
-      ? 'مقبول بانتظار الدفع'
-      : 'Accepted, awaiting payment';
+  String get acceptedAwaitingPayment =>
+      isArabic ? 'مقبول بانتظار الدفع' : 'Accepted, awaiting payment';
   String get noAcceptedAwaitingPayment => isArabic
       ? 'لا توجد حجوزات مقبولة بانتظار الدفع.'
       : 'No accepted bookings awaiting payment.';
@@ -503,8 +499,10 @@ class LamsaLocalizations {
   String get demoPaymentNotice => isArabic
       ? 'بيئة تجريبية: لا تتحرك أموال حقيقية ولا توجد بيانات بطاقة. اختاري نتيجة المحاكاة.'
       : 'Demo environment: no real money moves and no card data. Choose a simulated outcome.';
-  String get simulateSuccess => isArabic ? 'محاكاة نجاح الدفع' : 'Simulate success';
-  String get simulateFailure => isArabic ? 'محاكاة فشل الدفع' : 'Simulate failure';
+  String get simulateSuccess =>
+      isArabic ? 'محاكاة نجاح الدفع' : 'Simulate success';
+  String get simulateFailure =>
+      isArabic ? 'محاكاة فشل الدفع' : 'Simulate failure';
   String get paymentPending => isArabic ? 'بانتظار الدفع' : 'Payment pending';
   String get paymentPaid => isArabic ? 'مدفوع' : 'Paid';
   String get paymentFailed => isArabic ? 'فشل الدفع' : 'Payment failed';
@@ -521,6 +519,15 @@ class LamsaLocalizations {
   String get paymentNotEligible => isArabic
       ? 'الدفع متاح بعد قبول الخبيرة للطلب.'
       : 'Payment is available after the expert accepts the request.';
+  String get paymentAttemptsUnavailable => isArabic
+      ? 'تعذّر تحميل محاولات الدفع. اسحبي للتحديث.'
+      : 'Payment attempts could not be loaded. Pull to refresh.';
+  String get paymentAttemptsNotUpdated => isArabic
+      ? 'محاولات الدفع المعروضة لم تُحدَّث بعد فشل التحميل.'
+      : 'Shown payment attempts were not refreshed after a failure.';
+  String get reviewsUnavailable => isArabic
+      ? 'تعذّر تحميل التقييمات. اسحبي للتحديث.'
+      : 'Reviews could not be loaded. Pull to refresh.';
   String get paymentSettledMessage => isArabic
       ? 'يوجد دفع مسجل لهذا الحجز. حُدثت الحالة الحالية.'
       : 'This booking already has a recorded payment. State reloaded.';
@@ -536,12 +543,14 @@ class LamsaLocalizations {
   String get completionNotAllowed => isArabic
       ? 'الإكمال متاح للحجز المؤكد فقط.'
       : 'Only confirmed bookings can be completed.';
-  String get rateExperience => isArabic ? 'قيّمي التجربة' : 'Rate the experience';
+  String get rateExperience =>
+      isArabic ? 'قيّمي التجربة' : 'Rate the experience';
   String get ratingStars => isArabic ? 'التقييم بالنجوم' : 'Star rating';
   String get commentOptional =>
       isArabic ? 'تعليق (اختياري)' : 'Comment (optional)';
   String get submitReview => isArabic ? 'إرسال التقييم' : 'Submit review';
-  String get reviewSubmitted => isArabic ? 'شكرًا! سُجل تقييمك.' : 'Review saved.';
+  String get reviewSubmitted =>
+      isArabic ? 'شكرًا! سُجل تقييمك.' : 'Review saved.';
   String get alreadyReviewed => isArabic
       ? 'سبق أن قيّمتِ هذا الحجز.'
       : 'You already reviewed this booking.';
@@ -549,28 +558,35 @@ class LamsaLocalizations {
       ? 'التقييم متاح بعد اكتمال الحجز فقط.'
       : 'Reviews open after the booking completes.';
   String get myReview => isArabic ? 'تقييمك' : 'Your review';
-  String get otherPartyReview => isArabic
-      ? 'تقييم الطرف الآخر'
-      : 'Other party review';
-  String get confirmedInProgress => isArabic
-      ? 'مؤكدة وقيد التنفيذ'
-      : 'Confirmed and upcoming';
+  String get otherPartyReview =>
+      isArabic ? 'تقييم الطرف الآخر' : 'Other party review';
+  String get confirmedInProgress =>
+      isArabic ? 'مؤكدة وقيد التنفيذ' : 'Confirmed and upcoming';
   String get noConfirmedBookings => isArabic
       ? 'لا توجد حجوزات مؤكدة حاليًا.'
       : 'No confirmed bookings right now.';
-  String get customerAddress =>
-      isArabic ? 'عنوان العميلة' : 'Customer address';
+  String get completedBookings => isArabic ? 'المكتملة' : 'Completed';
+  String get noCompletedBookings =>
+      isArabic ? 'لا توجد حجوزات مكتملة بعد.' : 'No completed bookings yet.';
+  String get pastBookings => isArabic ? 'الحجوزات السابقة' : 'Past bookings';
+  String get loadingPastBookings =>
+      isArabic ? 'جارٍ تحميل الحجوزات السابقة…' : 'Loading past bookings…';
+  String get noPastBookings => isArabic
+      ? 'لا توجد حجوزات بهذه الحالة بعد.'
+      : 'No bookings in this state yet.';
+  String get customerAddress => isArabic ? 'عنوان العميلة' : 'Customer address';
   String get notifications => isArabic ? 'التنبيهات' : 'Notifications';
-  String get loadingNotifications => isArabic
-      ? 'جارٍ تحميل التنبيهات…'
-      : 'Loading notifications…';
+  String get loadingNotifications =>
+      isArabic ? 'جارٍ تحميل التنبيهات…' : 'Loading notifications…';
   String get unreadOnly => isArabic ? 'غير المقروء فقط' : 'Unread only';
   String unreadCount(int count) =>
       isArabic ? '$count غير مقروء' : '$count unread';
-  String get markAllRead =>
-      isArabic ? 'تحديد الكل كمقروء' : 'Mark all read';
+  String get markAllRead => isArabic ? 'تحديد الكل كمقروء' : 'Mark all read';
   String get noNotifications =>
       isArabic ? 'لا توجد تنبيهات.' : 'No notifications.';
+  String get pageLoadFailed => isArabic
+      ? 'تعذّر تحميل المزيد. العناصر المعروضة لم تتغير.'
+      : 'Could not load more. The shown items are unchanged.';
   String get earnings => isArabic ? 'المستحقات' : 'Earnings';
   String get loadingEarnings =>
       isArabic ? 'جارٍ تحميل المستحقات…' : 'Loading earnings…';
@@ -585,13 +601,21 @@ class LamsaLocalizations {
   String get transferRef => isArabic ? 'مرجع التحويل' : 'Transfer reference';
   String get linkedBookings =>
       isArabic ? 'الحجوزات المرتبطة' : 'Linked bookings';
+  String get recordedOn => isArabic ? 'تاريخ التسجيل' : 'Recorded on';
+  String get transferredOn => isArabic ? 'تاريخ التحويل' : 'Transferred on';
+  String get transferNotExecuted => isArabic
+      ? 'لم يُسجَّل تنفيذ التحويل بعد.'
+      : 'No transfer execution recorded yet.';
+  String get payoutPeriod => isArabic ? 'فترة التحويل' : 'Payout period';
+  String get payoutPeriodUnavailable => isArabic
+      ? 'الخادم لا يوفّر فترة للتحويل؛ التواريخ المعروضة هي تاريخ التسجيل والتحويل فقط.'
+      : 'The server sends no payout period; the dates shown are the recorded and transfer dates.';
   String get manualTransferNote => isArabic
       ? 'التحويل المسجل إجراء إداري؛ لا يعد تحويلًا مصرفيًا حقيقيًا إلا إذا أكده التنفيذ.'
       : 'A recorded transfer is administrative until execution confirms it.';
   String get allTransfers => isArabic ? 'الكل' : 'All';
-  String get loadingRequests => isArabic
-      ? 'جارٍ تحميل الطلبات…'
-      : 'Loading requests…';
+  String get loadingRequests =>
+      isArabic ? 'جارٍ تحميل الطلبات…' : 'Loading requests…';
   String get noPendingRequests => isArabic
       ? 'لا توجد طلبات معلقة حاليًا.'
       : 'No pending requests right now.';
@@ -602,9 +626,8 @@ class LamsaLocalizations {
   String get bookingAccepted =>
       isArabic ? 'قُبل الطلب بانتظار دفع العميلة' : 'Request accepted';
   String get bookingRejected => isArabic ? 'رُفض الطلب' : 'Request rejected';
-  String get requestExpired => isArabic
-      ? 'انتهت مهلة هذا الطلب.'
-      : 'This request has expired.';
+  String get requestExpired =>
+      isArabic ? 'انتهت مهلة هذا الطلب.' : 'This request has expired.';
   String get slotLost => isArabic
       ? 'لم يعد الموعد متاحًا. حُدثت الحالة الحالية.'
       : 'The slot is no longer available. Current state reloaded.';
@@ -632,6 +655,7 @@ class LamsaLocalizations {
     };
     return (isArabic ? arabic : english)[status] ?? status;
   }
+
   String weekdayName(int day) {
     const arabic = [
       'الإثنين',

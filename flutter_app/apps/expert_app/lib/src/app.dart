@@ -84,16 +84,29 @@ final pushRegistrarProvider = Provider<PushRegistrar>((ref) {
   return registrar;
 });
 
-/// Bridges session transitions to the device-token lifecycle. Permission is
-/// requested only after a real login; logout removes the token best-effort.
-/// Binds [SessionManager] transitions to the device-token lifecycle through
+/// Bridges session transitions to the device-token lifecycle through
 /// [PushSessionSync], which subscribes to the manager itself (a plain
 /// provider value never changes for a ChangeNotifier). Permission is
-/// requested only after a real login.
+/// requested only after a real login; logout removes the token best-effort;
+/// a transient failure retries on network return or app resume.
+/// Holds the workspace booking opener so a push can navigate from anywhere
+/// once the workspace is mounted. A plain holder keeps this free of Riverpod
+/// legacy state providers.
+class BookingOpenerHolder {
+  Future<void> Function(String bookingId)? open;
+}
+
+final bookingOpenerHolderProvider = Provider<BookingOpenerHolder>(
+  (ref) => BookingOpenerHolder(),
+);
+
 final pushSyncProvider = Provider<void>((ref) {
   final sync = PushSessionSync(
     manager: ref.watch(sessionManagerProvider),
     registrar: ref.read(pushRegistrarProvider),
+    // Connectivity is an existing signal; a failed registration retries when
+    // the network comes back, and again when the app is resumed.
+    connectivityChanges: ref.read(networkMonitorProvider).changes,
   );
   sync.attach();
   ref.onDispose(() async {
@@ -152,6 +165,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           reviewApi: ref.read(reviewApiProvider),
           notificationApi: ref.read(notificationApiProvider),
           earningApi: ref.read(earningApiProvider),
+          onBookingOpenerReady: (open) =>
+              ref.read(bookingOpenerHolderProvider).open = open,
         ),
       ),
     ],

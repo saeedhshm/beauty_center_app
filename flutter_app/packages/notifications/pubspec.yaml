@@ -16,6 +16,9 @@ dependencies:
     path: ../authentication
   lamsa_catalog:
     path: ../catalog
+  # Needed at runtime to classify failures (404 already deleted, 401 no auth).
+  lamsa_networking:
+    path: ../networking
 
 dev_dependencies:
   flutter_test:

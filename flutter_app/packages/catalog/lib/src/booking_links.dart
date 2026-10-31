@@ -23,6 +23,10 @@ BookingDeepLink? parseBookingLink(Uri uri) {
   return BookingDeepLink(bookingId: id);
 }
 
+/// The single UUID rule shared by deep links and push payloads, so both
+/// accept exactly the same identifiers.
+bool isValidBookingId(String value) => _isUuid(value);
+
 bool _isUuid(String value) => RegExp(
   r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
 ).hasMatch(value);

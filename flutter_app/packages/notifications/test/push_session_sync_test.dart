@@ -1,13 +1,18 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lamsa_authentication/lamsa_authentication.dart';
 import 'package:lamsa_catalog/lamsa_catalog.dart';
+import 'package:lamsa_networking/lamsa_networking.dart';
 import 'package:lamsa_notifications/lamsa_notifications.dart';
 
 /// Integration between the real [SessionManager] and [PushSessionSync]:
 /// session transitions drive exactly-once registration and ordered cleanup.
 void main() {
+  // The sync observes app lifecycle for the resume retry.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   AuthSession testSession() => AuthSession(
     user: const AuthUser(
       id: 'u1',
@@ -33,6 +38,87 @@ void main() {
     _PushProvider provider,
     _NotificationGateway gateway,
   ) => PushRegistrar(provider: provider, gateway: gateway);
+
+  final _registrars = <PushRegistrar>[];
+
+  /// The registrar the sync is using, kept so a test can assert pending state.
+  PushRegistrar registrarOf(PushSessionSync sync) => _registrars.last;
+
+  PushRegistrar trackedRegistrar(
+    _PushProvider provider,
+    _NotificationGateway gateway,
+  ) {
+    final registrar = testRegistrar(provider, gateway);
+    _registrars.add(registrar);
+    return registrar;
+  }
+
+  test('a failed registration retries when the network comes back', () async {
+    final auth = _AuthGateway(session: testSession());
+    final manager = testManager(auth);
+    final provider = _PushProvider(initialToken: 'device-token');
+    final gateway = _NotificationGateway()..registerError = _transient;
+    final connectivity = StreamController<bool>.broadcast();
+    final sync = PushSessionSync(
+      manager: manager,
+      registrar: trackedRegistrar(provider, gateway),
+      connectivityChanges: connectivity.stream,
+    );
+    sync.attach();
+
+    await manager.login(phone: '+201000000000', password: 'password-12345');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(gateway.registered, ['device-token']);
+    expect(registrarOf(sync).hasPendingRetry, isTrue);
+
+    // Network returns while still authenticated: the retry goes through.
+    gateway.registerError = null;
+    connectivity.add(true);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(gateway.registered, ['device-token', 'device-token']);
+    expect(registrarOf(sync).hasPendingRetry, isFalse);
+    expect(
+      provider.permissionRequests,
+      1,
+      reason: 'permission is not re-prompted',
+    );
+
+    await sync.dispose();
+    await connectivity.close();
+    manager.dispose();
+  });
+
+  test('no retry is attempted after logout', () async {
+    final auth = _AuthGateway(session: testSession());
+    final manager = testManager(auth);
+    final provider = _PushProvider(initialToken: 'device-token');
+    final gateway = _NotificationGateway()..registerError = _transient;
+    final connectivity = StreamController<bool>.broadcast();
+    final registrar = testRegistrar(provider, gateway);
+    final sync = PushSessionSync(
+      manager: manager,
+      registrar: registrar,
+      connectivityChanges: connectivity.stream,
+    );
+    sync.attach();
+
+    await manager.login(phone: '+201000000000', password: 'password-12345');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await manager.logout();
+    gateway.registered.clear();
+
+    connectivity.add(true);
+    TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+      AppLifecycleState.resumed,
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(gateway.registered, isEmpty);
+    await sync.dispose();
+    await connectivity.close();
+    manager.dispose();
+  });
 
   test('login registers the token exactly once', () async {
     final auth = _AuthGateway(session: testSession());
@@ -188,7 +274,148 @@ void main() {
     await second.dispose();
     manager.dispose();
   });
+
+  test(
+    'bootstrap from an expired stored session sweeps locally only',
+    () async {
+      final auth = _AuthGateway(session: testSession());
+      final manager = testManager(
+        auth,
+        StoredSession(
+          refreshToken: 'refresh-1',
+          refreshExpiresAt: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      );
+      final provider = _PushProvider(initialToken: 'device-token');
+      final gateway = _NotificationGateway();
+      final sync = PushSessionSync(
+        manager: manager,
+        registrar: testRegistrar(provider, gateway),
+      );
+      sync.attach();
+
+      await manager.bootstrap();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(manager.phase, SessionPhase.expired);
+      expect(manager.isAuthenticated, isFalse);
+      // Local-only sweep: no permission prompt, no server calls.
+      expect(provider.permissionRequests, 0);
+      expect(gateway.registered, isEmpty);
+      expect(gateway.removed, isEmpty);
+      expect(provider.deleted, isTrue);
+      expect(provider.deleteCalls, 1);
+      await sync.dispose();
+      manager.dispose();
+    },
+  );
+
+  test(
+    'rejected refresh during bootstrap sweeps locally without server calls',
+    () async {
+      final auth = _AuthGateway(session: testSession())
+        ..refreshFailure = const ApiFailure(
+          kind: ApiFailureKind.unauthorized,
+          code: 'INVALID_CREDENTIALS',
+          message: 'revoked',
+        );
+      final manager = testManager(
+        auth,
+        StoredSession(
+          refreshToken: 'refresh-1',
+          refreshExpiresAt: DateTime.now().add(const Duration(days: 30)),
+        ),
+      );
+      final provider = _PushProvider(initialToken: 'device-token');
+      final gateway = _NotificationGateway();
+      final sync = PushSessionSync(
+        manager: manager,
+        registrar: testRegistrar(provider, gateway),
+      );
+      sync.attach();
+
+      await manager.bootstrap();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(manager.phase, SessionPhase.expired);
+      expect(provider.permissionRequests, 0);
+      expect(gateway.registered, isEmpty);
+      expect(gateway.removed, isEmpty);
+      expect(provider.deleted, isTrue);
+      await sync.dispose();
+      manager.dispose();
+    },
+  );
+
+  test('offline bootstrap leaves push state untouched', () async {
+    final auth = _AuthGateway(session: testSession())
+      ..refreshFailure = const ApiFailure(
+        kind: ApiFailureKind.offline,
+        code: 'OFFLINE',
+        message: 'offline',
+      );
+    final manager = testManager(
+      auth,
+      StoredSession(
+        refreshToken: 'refresh-1',
+        refreshExpiresAt: DateTime.now().add(const Duration(days: 30)),
+      ),
+    );
+    final provider = _PushProvider(initialToken: 'device-token');
+    final gateway = _NotificationGateway();
+    final sync = PushSessionSync(
+      manager: manager,
+      registrar: testRegistrar(provider, gateway),
+    );
+    sync.attach();
+
+    await manager.bootstrap();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    // Transient failure, not a verdict: the session may still be valid.
+    expect(manager.phase, SessionPhase.offline);
+    expect(provider.permissionRequests, 0);
+    expect(gateway.registered, isEmpty);
+    expect(gateway.removed, isEmpty);
+    expect(provider.deleted, isFalse);
+    expect(provider.deleteCalls, 0);
+    await sync.dispose();
+    manager.dispose();
+  });
+
+  test('invalid-state sweep is idempotent', () async {
+    final auth = _AuthGateway(session: testSession());
+    final manager = testManager(
+      auth,
+      StoredSession(
+        refreshToken: 'refresh-1',
+        refreshExpiresAt: DateTime.now().subtract(const Duration(days: 1)),
+      ),
+    );
+    final provider = _PushProvider(initialToken: 'device-token');
+    final gateway = _NotificationGateway();
+    final sync = PushSessionSync(
+      manager: manager,
+      registrar: testRegistrar(provider, gateway),
+    );
+    sync.attach();
+
+    await manager.bootstrap();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(provider.deleteCalls, 1);
+
+    // A repeated terminal notification must not sweep again.
+    await manager.sessionExpired();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(provider.deleteCalls, 1);
+    expect(gateway.removed, isEmpty);
+    await sync.dispose();
+    manager.dispose();
+  });
 }
+
+const _transient = Object();
 
 class _AuthGateway implements AuthGateway {
   _AuthGateway({required this.session});
@@ -196,6 +423,7 @@ class _AuthGateway implements AuthGateway {
   AuthSession session;
   int loginCalls = 0;
   List<String> events = [];
+  Object? refreshFailure;
 
   @override
   Future<AuthSession> login({
@@ -212,7 +440,11 @@ class _AuthGateway implements AuthGateway {
   }
 
   @override
-  Future<AuthSession> refresh(String refreshToken) async => session;
+  Future<AuthSession> refresh(String refreshToken) async {
+    final failure = refreshFailure;
+    if (failure != null) throw failure;
+    return session;
+  }
 
   @override
   Future<AuthSession> register({
@@ -245,8 +477,12 @@ class _PushProvider implements PushProvider {
   _PushProvider({required String? initialToken}) : currentToken = initialToken;
 
   String? currentToken;
+
+  /// Mutable so a test can simulate initialization recovering later.
+  bool initialized = true;
   int permissionRequests = 0;
   bool deleted = false;
+  int deleteCalls = 0;
   final _rotations = StreamController<String>.broadcast();
 
   void rotate(String next) {
@@ -255,7 +491,7 @@ class _PushProvider implements PushProvider {
   }
 
   @override
-  Future<bool> ensureInitialized() async => true;
+  Future<bool> ensureInitialized() async => initialized;
 
   @override
   Future<PushPermission> requestPermission() async {
@@ -270,7 +506,17 @@ class _PushProvider implements PushProvider {
   Stream<String> get onTokenRefresh => _rotations.stream;
 
   @override
+  Stream<PushEnvelope> get onForegroundMessage => const Stream.empty();
+
+  @override
+  Stream<PushEnvelope> get onOpenedMessage => const Stream.empty();
+
+  @override
+  Future<PushEnvelope?> initialMessage() async => null;
+
+  @override
   Future<void> deleteToken() async {
+    deleteCalls += 1;
     deleted = true;
   }
 }
@@ -282,9 +528,14 @@ class _NotificationGateway implements NotificationGateway {
   final List<String> removed = [];
   final void Function(String id)? onRemove;
 
+  /// Set to fail `POST /devices` without touching anything else.
+  Object? registerError;
+
   @override
   Future<RegisteredDevice> registerDevice(String token) async {
     registered.add(token);
+    final error = registerError;
+    if (error != null) throw error;
     return RegisteredDevice(
       id: 'device-${registered.length}',
       createdAt: '2026-10-14T06:00:00.000Z',

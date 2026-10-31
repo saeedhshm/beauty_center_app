@@ -71,5 +71,19 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Internal deep links only: lamsa://booking/<uuid> is the documented
+	     contract (packages/catalog/src/booking_links.dart). No universal link
+	     or associated domain is claimed, because none is provisioned. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.lamsa.bookinglink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lamsa</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

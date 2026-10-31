@@ -58,18 +58,39 @@ class ExpertPayout {
     required this.transferRef,
     required this.transferredAt,
     required this.createdAt,
+    this.periodStart,
+    this.periodEnd,
     this.bookings = const [],
   });
 
   final String id;
   final String amount;
   final String currency;
+
+  /// Operational reference entered by the back office. It is not proof of a
+  /// bank transfer on its own: only [transferredAt] marks a transfer executed.
   final String? transferRef;
+
+  /// Null until the transfer is recorded as executed by the server.
   final String? transferredAt;
+
+  /// When the payout row was recorded.
   final String createdAt;
+
+  /// Payout period as sent by the server, if the contract carries one.
+  ///
+  /// The current contract (`web_app/backend/src/modules/payouts`) sends no
+  /// period fields, so these are null today. They are read, never derived: the
+  /// app does not build a period out of booking dates.
+  final String? periodStart;
+  final String? periodEnd;
+
   final List<PayoutBooking> bookings;
 
   bool get isTransferred => transferredAt != null;
+
+  /// True only when the server sent both ends of a period.
+  bool get hasPeriod => periodStart != null && periodEnd != null;
 
   factory ExpertPayout.fromJson(JsonObject json) {
     String requiredString(String key) {
@@ -87,13 +108,23 @@ class ExpertPayout {
               .map(PayoutBooking.fromJson)
               .toList(growable: false)
         : const <PayoutBooking>[];
+    String? optionalString(String key) {
+      final value = json[key];
+      if (value == null) return null;
+      if (value is! String) throw const FormatException('Invalid API response');
+      return value;
+    }
+
     return ExpertPayout(
       id: requiredString('id'),
       amount: requiredString('amount'),
       currency: requiredString('currency'),
-      transferRef: json['transferRef'] as String?,
-      transferredAt: json['transferredAt'] as String?,
+      transferRef: optionalString('transferRef'),
+      transferredAt: optionalString('transferredAt'),
       createdAt: requiredString('createdAt'),
+      // Read when the contract provides them; absent today, never invented.
+      periodStart: optionalString('periodStart'),
+      periodEnd: optionalString('periodEnd'),
       bookings: bookings,
     );
   }

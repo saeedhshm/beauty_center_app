@@ -248,8 +248,16 @@ class _ExpertEarningsScreenState extends State<ExpertEarningsScreen>
                 title: Text('${payout.amount} ${payout.currency}'),
                 subtitle: Text(
                   payout.isTransferred
-                      ? '${context.lamsa.transferDone} · ${payout.transferRef ?? ''}'
-                      : context.lamsa.transferRecorded,
+                      // Recorded and executed are different facts, so both dates show.
+                      ? '${context.lamsa.transferDone} · '
+                            '${context.lamsa.transferredOn}: '
+                            '${formatMarketDateTime(payout.transferredAt!)} · '
+                            '${context.lamsa.recordedOn}: '
+                            '${formatMarketDateTime(payout.createdAt)}'
+                      : '${context.lamsa.transferRecorded} · '
+                            '${context.lamsa.recordedOn}: '
+                            '${formatMarketDateTime(payout.createdAt)}',
+                  key: ValueKey('payout-dates-${payout.id}'),
                 ),
                 trailing: const Icon(Icons.chevron_left),
                 onTap: () async {
@@ -372,10 +380,58 @@ class _PayoutSheetState extends State<_PayoutSheet> {
               const SizedBox(height: 4),
               Text(
                 _payout!.isTransferred
-                    ? '${context.lamsa.transferDone} · ${context.lamsa.transferRef}: ${_payout!.transferRef ?? '—'}'
+                    ? context.lamsa.transferDone
                     : context.lamsa.transferRecorded,
+                key: const ValueKey('payout-state'),
                 textAlign: TextAlign.center,
               ),
+              const SizedBox(height: 12),
+              // Recorded and transferred are separate facts with separate dates.
+              Text(
+                '${context.lamsa.recordedOn}: '
+                '${formatMarketDateTime(_payout!.createdAt)}',
+                key: const ValueKey('payout-recorded-at'),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              if (_payout!.isTransferred)
+                Text(
+                  '${context.lamsa.transferredOn}: '
+                  '${formatMarketDateTime(_payout!.transferredAt!)}',
+                  key: const ValueKey('payout-transferred-at'),
+                  textAlign: TextAlign.center,
+                )
+              else
+                Text(
+                  '${context.lamsa.transferredOn}: '
+                  '${context.lamsa.transferNotExecuted}',
+                  key: const ValueKey('payout-not-transferred'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              if (_payout!.isTransferred)
+                Text(
+                  '${context.lamsa.transferRef}: ${_payout!.transferRef ?? '—'}',
+                  key: const ValueKey('payout-transfer-ref'),
+                  textAlign: TextAlign.center,
+                ),
+              const SizedBox(height: 12),
+              // Shown only when the server sends a period; never derived here.
+              if (_payout!.hasPeriod)
+                Text(
+                  '${context.lamsa.payoutPeriod}: '
+                  '${formatMarketDateTime(_payout!.periodStart!)} ← '
+                  '${formatMarketDateTime(_payout!.periodEnd!)}',
+                  key: const ValueKey('payout-period'),
+                  textAlign: TextAlign.center,
+                )
+              else
+                Text(
+                  context.lamsa.payoutPeriodUnavailable,
+                  key: const ValueKey('payout-period-missing'),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               const SizedBox(height: 12),
               Text(
                 context.lamsa.linkedBookings,

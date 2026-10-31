@@ -110,9 +110,44 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
     }
   }
 
+  /// Validation of the edited week, derived on every build so the message is
+  /// always tied to the schedule the user is looking at, and disappears as
+  /// soon as the offending interval is fixed.
+  ScheduleValidation get _validation => validateWeeklySchedule({
+    for (final entry in (_week ?? const {}).entries)
+      entry.key: [
+        for (final draft in entry.value)
+          WeeklySlot(
+            dayOfWeek: entry.key,
+            startTime: draft.start,
+            endTime: draft.end,
+          ),
+      ],
+  });
+
+  String? _validationMessage() {
+    final result = _validation;
+    if (result.isValid) return null;
+    return switch (result.problem!) {
+      ScheduleProblem.tooManyIntervals => context.lamsa.maxIntervalsPerDay,
+      ScheduleProblem.malformedTime => context.lamsa.invalidTimeFormat,
+      ScheduleProblem.endNotAfterStart => context.lamsa.endMustBeAfterStart,
+      ScheduleProblem.outsideDaytime => context.lamsa.outsideDaytime,
+      ScheduleProblem.overlapping => context.lamsa.overlappingIntervals,
+    };
+  }
+
+  /// Revalidated before every request: the disabled button is a convenience,
+  /// not the guarantee.
+  bool get _canSave => _week != null && !_saving && _validation.isValid;
+
   Future<void> _save() async {
     final week = _week;
     if (week == null || _saving) return;
+    if (!_validation.isValid) {
+      setState(() {});
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -142,8 +177,11 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
       setState(() => _saving = false);
       if (failure.kind == ApiFailureKind.conflict ||
           failure.kind == ApiFailureKind.validation) {
-        setState(() => _error = context.lamsa.scheduleConflict);
+        // Reload first: `_load` clears the error, so the explanation is set
+        // after it or the reason for the reload would never be seen.
         await _load();
+        if (!mounted) return;
+        setState(() => _error = context.lamsa.scheduleConflict);
       } else if (mounted) {
         setState(() {
           _error = failure.message;
@@ -160,52 +198,15 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
     }
   }
 
+  /// The three-interval cap is no longer short-circuited here: adding a fourth
+  /// is allowed to happen and is then reported by the derived validation, which
+  /// keeps one source of truth for "cannot save".
   Future<void> _addInterval(int day) async {
     final week = _week;
     if (week == null) return;
-    if ((week[day] ?? []).length >= 3) {
-      setState(() => _error = context.lamsa.maxIntervalsPerDay);
-      return;
-    }
     final draft = await _requestInterval(context, null);
     if (draft == null || !mounted) return;
     setState(() => week[day]!.add(draft));
-    _validateLocal();
-  }
-
-  void _validateLocal() {
-    final week = _week;
-    if (week == null) return;
-    for (final entry in week.entries) {
-      final slots = [
-        for (final draft in entry.value)
-          WeeklySlot(
-            dayOfWeek: entry.key,
-            startTime: draft.start,
-            endTime: draft.end,
-          ),
-      ];
-      if (areIntervalsValid(slots)) continue;
-      var message = context.lamsa.overlappingIntervals;
-      for (final slot in slots) {
-        if (_minutes(slot.startTime) >= _minutes(slot.endTime)) {
-          message = context.lamsa.endMustBeAfterStart;
-          break;
-        }
-        if (!isWithinDaytime(slot.startTime, slot.endTime)) {
-          message = context.lamsa.outsideDaytime;
-          break;
-        }
-      }
-      setState(() => _error = message);
-      return;
-    }
-    setState(() => _error = null);
-  }
-
-  int _minutes(String value) {
-    final parts = value.split(':');
-    return int.parse(parts[0]) * 60 + int.parse(parts[1]);
   }
 
   Future<void> _addException() async {
@@ -316,6 +317,17 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
                 onRetry: _load,
               ),
             ),
+          if (_validationMessage() case final message?)
+            Padding(
+              padding: const EdgeInsets.only(bottom: LamsaSpacing.md),
+              key: const ValueKey('schedule-validation'),
+              child: Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            ),
           Text(
             context.lamsa.weeklySchedule,
             style: Theme.of(context).textTheme.titleLarge,
@@ -330,7 +342,7 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
           const SizedBox(height: 12),
           FilledButton(
             key: const ValueKey('availability-save'),
-            onPressed: _saving ? null : _save,
+            onPressed: _canSave ? _save : null,
             child: Text(
               _saving ? context.lamsa.saving : context.lamsa.saveSchedule,
             ),
@@ -408,7 +420,6 @@ class _ExpertAvailabilityScreenState extends State<ExpertAvailabilityScreen> {
                   tooltip: context.lamsa.deleteInterval,
                   onPressed: () {
                     setState(() => intervals.removeAt(i));
-                    _validateLocal();
                   },
                   icon: const Icon(Icons.delete_outline),
                 ),

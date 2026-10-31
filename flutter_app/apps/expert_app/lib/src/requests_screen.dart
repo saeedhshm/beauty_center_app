@@ -4,7 +4,10 @@ import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
-enum _SectionKind { pending, accepted, confirmed }
+import 'booking_detail_screen.dart';
+import 'review_section.dart';
+
+enum _SectionKind { pending, accepted, confirmed, completed }
 
 /// Independent server-side paging state per section. Pages never mix:
 /// each section tracks its own page, hasNext, loading flags, error, and a
@@ -50,6 +53,7 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
     _SectionKind.pending: _SectionData(BookingStates.pending),
     _SectionKind.accepted: _SectionData(BookingStates.accepted),
     _SectionKind.confirmed: _SectionData(BookingStates.confirmed),
+    _SectionKind.completed: _SectionData(BookingStates.completed),
   };
   bool _firstLoad = true;
   String? _mutatingId;
@@ -256,6 +260,13 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
           ),
           const SizedBox(height: 8),
           _itemsSection(_SectionKind.confirmed),
+          const SizedBox(height: 16),
+          Text(
+            context.lamsa.completedBookings,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          _itemsSection(_SectionKind.completed),
         ],
       ),
     );
@@ -335,9 +346,12 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
   Widget _itemsSection(_SectionKind kind) {
     final section = _sections[kind]!;
     final name = kind.name;
-    final emptyText = kind == _SectionKind.accepted
-        ? context.lamsa.noAcceptedAwaitingPayment
-        : context.lamsa.noConfirmedBookings;
+    final emptyText = switch (kind) {
+      _SectionKind.pending => '',
+      _SectionKind.accepted => context.lamsa.noAcceptedAwaitingPayment,
+      _SectionKind.confirmed => context.lamsa.noConfirmedBookings,
+      _SectionKind.completed => context.lamsa.noCompletedBookings,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -360,26 +374,41 @@ class _ExpertRequestsScreenState extends State<ExpertRequestsScreen>
                   formatBookingDateTime(booking.startsAt, booking.timeZone),
                   textDirection: TextDirection.ltr,
                 ),
-                trailing: kind == _SectionKind.confirmed
-                    ? const Icon(Icons.chevron_left)
-                    : null,
-                onTap: kind == _SectionKind.confirmed
-                    ? () async {
-                        await showModalBottomSheet<void>(
-                          context: context,
-                          isScrollControlled: true,
-                          builder: (sheetContext) => _ConfirmedSheet(
-                            bookings: widget.bookings,
-                            reviews: widget.reviews,
-                            currentUserId: widget.currentUserId,
-                            booking: booking,
-                          ),
-                        );
-                        if (mounted) {
-                          await _reloadSections({_SectionKind.confirmed});
-                        }
-                      }
-                    : null,
+                trailing: kind == _SectionKind.accepted
+                    ? null
+                    : const Icon(Icons.chevron_left),
+                onTap: switch (kind) {
+                  _SectionKind.confirmed => () async {
+                    await showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      builder: (sheetContext) => _ConfirmedSheet(
+                        bookings: widget.bookings,
+                        reviews: widget.reviews,
+                        currentUserId: widget.currentUserId,
+                        booking: booking,
+                      ),
+                    );
+                    if (mounted) {
+                      await _reloadSections({_SectionKind.confirmed});
+                    }
+                  },
+                  _SectionKind.completed => () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ExpertBookingDetailScreen(
+                          bookings: widget.bookings,
+                          reviews: widget.reviews,
+                          currentUserId: widget.currentUserId,
+                          bookingId: booking.id,
+                        ),
+                      ),
+                    );
+                    // Review state lives in the detail screen; the list row
+                    // itself cannot change, so no section reload is needed.
+                  },
+                  _ => null,
+                },
               ),
             ),
           _loadMoreRow(kind),
@@ -496,32 +525,7 @@ class _ConfirmedSheet extends StatefulWidget {
 
 class _ConfirmedSheetState extends State<_ConfirmedSheet> {
   late Booking _booking = widget.booking;
-  List<BookingReview> _reviews = const [];
   bool _completing = false;
-  int _rating = 5;
-  String _comment = '';
-  bool _submitting = false;
-  bool _loadingReviews = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadReviews();
-  }
-
-  Future<void> _loadReviews() async {
-    try {
-      final reviews = await widget.reviews.forBooking(_booking.id);
-      if (mounted) {
-        setState(() {
-          _reviews = reviews;
-          _loadingReviews = false;
-        });
-      }
-    } on Object {
-      if (mounted) setState(() => _loadingReviews = false);
-    }
-  }
 
   Future<void> _complete() async {
     if (_completing) return;
@@ -555,56 +559,9 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
     }
   }
 
-  Future<void> _submitReview() async {
-    if (_submitting) return;
-    setState(() => _submitting = true);
-    try {
-      await widget.reviews.submit(
-        _booking.id,
-        rating: _rating,
-        comment: _comment.isEmpty ? null : _comment,
-      );
-      if (!mounted) return;
-      setState(() => _submitting = false);
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(content: Text(context.lamsa.reviewSubmitted)),
-      );
-      await _loadReviews();
-    } on ApiFailure catch (failure) {
-      if (!mounted) return;
-      setState(() => _submitting = false);
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            failure.code == 'DUPLICATE_REVIEW'
-                ? context.lamsa.alreadyReviewed
-                : failure.kind == ApiFailureKind.conflict
-                ? context.lamsa.bookingStateChanged
-                : failure.message,
-          ),
-        ),
-      );
-      await _loadReviews();
-    } on Object {
-      if (mounted) setState(() => _submitting = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final completed = _booking.status == BookingStates.completed;
-    final mine = _reviews
-        .where(
-          (item) => item.isMine(
-            viewerIsCustomer: false,
-            viewerId: widget.currentUserId,
-          ),
-        )
-        .firstOrNull;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
@@ -647,68 +604,12 @@ class _ConfirmedSheetState extends State<_ConfirmedSheet> {
                 ),
               ] else ...[
                 const SizedBox(height: 12),
-                Text(
-                  context.lamsa.rateExperience,
-                  style: Theme.of(context).textTheme.titleMedium,
+                BookingReviewSection(
+                  key: ValueKey('sheet-reviews-${_booking.id}'),
+                  reviews: widget.reviews,
+                  bookingId: _booking.id,
+                  currentUserId: widget.currentUserId,
                 ),
-                if (_loadingReviews)
-                  const Center(child: CircularProgressIndicator())
-                else ...[
-                  for (final review in _reviews)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: Text(
-                        review.isMine(
-                              viewerIsCustomer: false,
-                              viewerId: widget.currentUserId,
-                            )
-                            ? '${context.lamsa.myReview}: ${'★' * review.rating}'
-                            : '${context.lamsa.otherPartyReview}: ${'★' * review.rating}',
-                      ),
-                      subtitle:
-                          review.comment != null && review.comment!.isNotEmpty
-                          ? Text(review.comment!)
-                          : null,
-                    ),
-                  if (mine == null) ...[
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var star = 1; star <= 5; star++)
-                          IconButton(
-                            key: ValueKey('expert-review-star-$star'),
-                            tooltip: '$star',
-                            onPressed: _submitting
-                                ? null
-                                : () => setState(() => _rating = star),
-                            icon: Icon(
-                              star <= _rating ? Icons.star : Icons.star_border,
-                            ),
-                          ),
-                      ],
-                    ),
-                    TextField(
-                      key: const ValueKey('expert-review-comment'),
-                      decoration: InputDecoration(
-                        labelText: context.lamsa.commentOptional,
-                      ),
-                      maxLength: 1000,
-                      maxLines: 2,
-                      onChanged: (value) => _comment = value,
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      key: const ValueKey('expert-review-submit'),
-                      onPressed: _submitting ? null : _submitReview,
-                      child: Text(
-                        _submitting
-                            ? context.lamsa.sending
-                            : context.lamsa.submitReview,
-                      ),
-                    ),
-                  ],
-                ],
               ],
             ],
           ),

@@ -3,6 +3,7 @@ import 'package:lamsa_catalog/lamsa_catalog.dart';
 import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
+import 'package:lamsa_notifications/lamsa_notifications.dart';
 
 /// Expert notifications center (A8 partial): server list, unread filter,
 /// mark-read, and deep-open of the referenced booking through a fresh
@@ -26,74 +27,45 @@ class ExpertNotificationsScreen extends StatefulWidget {
 }
 
 class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
-    with WidgetsBindingObserver {
-  List<AppNotification> _items = const [];
-  int _unread = 0;
-  bool _unreadOnly = false;
-  bool _loading = true;
-  Object? _error;
+    with
+        WidgetsBindingObserver,
+        NotificationFeedController<ExpertNotificationsScreen> {
+  @override
+  NotificationGateway get notificationsGateway => widget.notifications;
 
   @override
   void initState() {
     super.initState();
-    widget.refreshSignal?.addListener(_load);
+    widget.refreshSignal?.addListener(feedReload);
     WidgetsBinding.instance.addObserver(this);
-    _load();
+    feedReload();
   }
 
   @override
   void didUpdateWidget(covariant ExpertNotificationsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshSignal != widget.refreshSignal) {
-      oldWidget.refreshSignal?.removeListener(_load);
-      widget.refreshSignal?.addListener(_load);
+      oldWidget.refreshSignal?.removeListener(feedReload);
+      widget.refreshSignal?.addListener(feedReload);
     }
   }
 
   @override
   void dispose() {
-    widget.refreshSignal?.removeListener(_load);
+    widget.refreshSignal?.removeListener(feedReload);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _load();
-  }
-
-  Future<void> _load() async {
-    if (!mounted) return;
-    setState(() {
-      _loading = _items.isEmpty;
-      _error = null;
-    });
-    try {
-      final results = await Future.wait([
-        widget.notifications.notifications(unreadOnly: _unreadOnly),
-        widget.notifications.unreadCount(),
-      ]);
-      if (!mounted) return;
-      final page = results[0] as CatalogPage<AppNotification>;
-      setState(() {
-        _items = page.items;
-        _unread = results[1] as int;
-        _loading = false;
-      });
-    } catch (error) {
-      if (mounted) {
-        setState(() {
-          _error = error;
-          _loading = false;
-        });
-      }
-    }
+    if (state == AppLifecycleState.resumed) feedReload();
   }
 
   Future<void> _markAllRead() async {
     try {
       await widget.notifications.markAllRead();
-      if (mounted) _load();
+      if (mounted) feedReload();
     } on ApiFailure catch (failure) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -118,7 +90,10 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
       }
     }
     if (!mounted) return;
-    final bookingId = _validatedBookingId(item.bookingId);
+    final rawBookingId = item.bookingId?.trim();
+    final bookingId = rawBookingId != null && isValidBookingId(rawBookingId)
+        ? rawBookingId
+        : null;
     if (bookingId == null) {
       if (item.bookingId != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -130,39 +105,27 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
     widget.onOpenBooking(bookingId);
   }
 
-  /// Accepts only well-formed `lamsa://booking/<uuid>` references so a
-  /// corrupt id never navigates anywhere. Anything else yields null and the
-  /// caller shows a safe message instead.
-  static String? _validatedBookingId(String? rawId) {
-    final id = rawId?.trim();
-    if (id == null || id.isEmpty) return null;
-    final link = parseBookingLink(
-      Uri(scheme: 'lamsa', host: 'booking', pathSegments: [id]),
-    );
-    return link?.bookingId;
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (_loading && _error == null && _items.isEmpty) {
+    if (feedLoading && feedError == null && feedItems.isEmpty) {
       return LamsaStatusView(
         status: LamsaStatus.loading,
         title: context.lamsa.notifications,
         message: context.lamsa.loadingNotifications,
       );
     }
-    if (_error != null && _items.isEmpty) {
+    if (feedError != null && feedItems.isEmpty) {
       return LamsaStatusView(
         status: LamsaStatus.error,
         title: context.lamsa.notifications,
-        message: _error is ApiFailure
-            ? (_error! as ApiFailure).message
+        message: feedError is ApiFailure
+            ? (feedError! as ApiFailure).message
             : context.lamsa.tryAgain,
-        onRetry: _load,
+        onRetry: feedReload,
       );
     }
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: feedReload,
       child: ListView(
         padding: const EdgeInsets.all(LamsaSpacing.lg),
         children: [
@@ -171,17 +134,14 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
               FilterChip(
                 key: const ValueKey('notifications-unread-only'),
                 label: Text(context.lamsa.unreadOnly),
-                selected: _unreadOnly,
-                onSelected: (value) {
-                  setState(() => _unreadOnly = value);
-                  _load();
-                },
+                selected: feedUnreadOnly,
+                onSelected: feedSetUnreadOnly,
               ),
               const SizedBox(width: 8),
-              if (_unread > 0)
+              if (feedUnread > 0)
                 Expanded(
                   child: Text(
-                    context.lamsa.unreadCount(_unread),
+                    context.lamsa.unreadCount(feedUnread),
                     textAlign: TextAlign.end,
                   ),
                 ),
@@ -193,14 +153,14 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
             ],
           ),
           const SizedBox(height: 8),
-          if (_items.isEmpty)
+          if (feedItems.isEmpty)
             LamsaStatusView(
               status: LamsaStatus.empty,
               title: context.lamsa.notifications,
               message: context.lamsa.noNotifications,
-              onRetry: _load,
+              onRetry: feedReload,
             ),
-          for (final item in _items)
+          for (final item in feedItems)
             Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
@@ -219,6 +179,34 @@ class _ExpertNotificationsScreenState extends State<ExpertNotificationsScreen>
                     : null,
                 onTap: () => _open(item),
               ),
+            ),
+          // A failed page keeps everything already loaded and offers a retry.
+          if (feedPageError != null)
+            Padding(
+              key: const ValueKey('notifications-page-error'),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.lamsa.pageLoadFailed,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  TextButton(
+                    key: const ValueKey('notifications-page-retry'),
+                    onPressed: feedRetryPage,
+                    child: Text(context.lamsa.retry),
+                  ),
+                ],
+              ),
+            ),
+          if (feedHasNext)
+            LamsaButton(
+              key: const ValueKey('notifications-load-more'),
+              label: context.lamsa.loadMore,
+              loading: feedLoadingMore,
+              onPressed: feedLoadingMore ? null : feedLoadMore,
             ),
         ],
       ),

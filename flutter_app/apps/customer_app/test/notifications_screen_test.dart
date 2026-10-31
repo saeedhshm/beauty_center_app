@@ -9,7 +9,7 @@ void main() {
   testWidgets('list marks read and opens the booking fresh', (tester) async {
     final notifications = _NotificationsGateway(
       items: [
-        _item('n1', read: false, bookingId: 'b1'),
+        _item('n1', read: false, bookingId: _bookingId(1)),
         _item('n2', read: true, bookingId: null),
       ],
     );
@@ -92,8 +92,10 @@ AppNotification _item(
   createdAt: '2026-10-14T06:00:00.000Z',
 );
 
+String _bookingId(int n) => '00000000-0000-4000-8000-00000000000$n';
+
 Booking _booking() => const Booking(
-  id: 'b1',
+  id: '00000000-0000-4000-8000-000000000001',
   customerId: 'c1',
   expertId: 'e1',
   serviceId: 7,
@@ -208,8 +210,12 @@ class _BookingsGateway implements BookingGateway {
   Future<CatalogPage<Booking>> bookings({String? status, int page = 1}) =>
       throw UnimplementedError();
 
+  /// Ids the detail screen asked for, to prove a fetch happened.
+  final fetched = <String>[];
+
   @override
   Future<Booking> booking(String id) async {
+    fetched.add(id);
     onDetail?.call();
     return _booking();
   }

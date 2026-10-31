@@ -8,6 +8,7 @@ import 'booking_detail_screen.dart';
 import 'expert_profile_screen.dart';
 import 'earnings_screen.dart';
 import 'notifications_screen.dart';
+import 'past_bookings_screen.dart';
 import 'requests_screen.dart';
 import 'portfolio_screen.dart';
 import 'services_screen.dart';
@@ -23,8 +24,14 @@ class ExpertWorkspaceShell extends StatefulWidget {
     required this.reviewApi,
     required this.notificationApi,
     required this.earningApi,
+    this.onBookingOpenerReady,
     super.key,
   });
+
+  /// Receives this shell's booking opener so a push can navigate from
+  /// anywhere in the app while the workspace is alive.
+  final void Function(Future<void> Function(String bookingId))?
+  onBookingOpenerReady;
 
   final SessionManager manager;
   final ExpertGateway expertApi;
@@ -49,6 +56,7 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.onBookingOpenerReady?.call(_openBooking);
   }
 
   @override
@@ -92,6 +100,11 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
         label: context.lamsa.bookingRequests,
       ),
       NavigationDestination(
+        icon: const Icon(Icons.history_outlined),
+        selectedIcon: const Icon(Icons.history),
+        label: context.lamsa.pastBookings,
+      ),
+      NavigationDestination(
         icon: const Icon(Icons.notifications_outlined),
         selectedIcon: const Icon(Icons.notifications),
         label: context.lamsa.notifications,
@@ -124,6 +137,12 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
         refreshSignal: _refreshSignal,
       ),
       ExpertRequestsScreen(
+        bookings: widget.bookingApi,
+        reviews: widget.reviewApi,
+        currentUserId: widget.manager.user?.id,
+        refreshSignal: _refreshSignal,
+      ),
+      ExpertPastBookingsScreen(
         bookings: widget.bookingApi,
         reviews: widget.reviewApi,
         currentUserId: widget.manager.user?.id,
@@ -205,6 +224,8 @@ class _ExpertWorkspaceShellState extends State<ExpertWorkspaceShell>
       MaterialPageRoute<void>(
         builder: (_) => ExpertBookingDetailScreen(
           bookings: widget.bookingApi,
+          reviews: widget.reviewApi,
+          currentUserId: widget.manager.user?.id,
           bookingId: bookingId,
         ),
       ),

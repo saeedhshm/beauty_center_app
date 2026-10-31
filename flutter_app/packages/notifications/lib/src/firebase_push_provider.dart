@@ -2,6 +2,31 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'push_provider.dart';
+import 'push_routing.dart';
+
+/// Registered by each app in `main()` before the first frame.
+///
+/// Background and terminated delivery run in their own isolate, so this
+/// handler may only read the payload. It deliberately performs no navigation
+/// and no business mutation: the app re-reads the booking through the API once
+/// it is in the foreground, after the session is restored and the role is
+/// checked.
+/// Registers the background handler. Apps call this in `main()` so Firebase
+/// stays an implementation detail of this package.
+void registerPushBackgroundHandler() {
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  final data = <String, Object?>{};
+  for (final entry in message.data.entries) {
+    data[entry.key] = entry.value;
+  }
+  // Parsing here proves the payload is at least well formed; the destination is
+  // recomputed in the app isolate, which owns session and navigation.
+  pushDestinationFromData(data);
+}
 
 /// Firebase-backed token source. All Firebase calls degrade to
 /// "unavailable" when native configuration files are missing, so the apps
@@ -62,6 +87,45 @@ class FirebasePushProvider implements PushProvider {
     final messaging = _instance;
     if (messaging == null) return const Stream.empty();
     return messaging.onTokenRefresh.handleError((Object _) {});
+  }
+
+  @override
+  Stream<PushEnvelope> get onForegroundMessage {
+    final messaging = _instance;
+    if (messaging == null) return const Stream.empty();
+    return FirebaseMessaging.onMessage
+        .map(_envelope)
+        .handleError((Object _) {});
+  }
+
+  @override
+  Stream<PushEnvelope> get onOpenedMessage {
+    final messaging = _instance;
+    if (messaging == null) return const Stream.empty();
+    return FirebaseMessaging.onMessageOpenedApp
+        .map(_envelope)
+        .handleError((Object _) {});
+  }
+
+  @override
+  Future<PushEnvelope?> initialMessage() async {
+    final messaging = _instance;
+    if (messaging == null) return null;
+    try {
+      final message = await messaging.getInitialMessage();
+      return message == null ? null : _envelope(message);
+    } on Object {
+      return null;
+    }
+  }
+
+  PushEnvelope _envelope(RemoteMessage message) {
+    final data = <String, Object?>{};
+    for (final entry in message.data.entries) {
+      data[entry.key] = entry.value;
+    }
+    final type = message.data['type'] ?? message.messageType;
+    return PushEnvelope(type: type ?? '', data: data);
   }
 
   @override

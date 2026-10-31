@@ -287,12 +287,20 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
   Object? _error;
   bool _cancelling = false;
   List<BookingPayment> _attempts = const [];
+  Object? _attemptsError;
   bool _paying = false;
   List<BookingReview> _reviews = const [];
+  Object? _reviewsError;
   bool _completing = false;
   int _rating = 5;
   String _comment = '';
   bool _submittingReview = false;
+
+  /// Guards every read of this screen. A response may only write state when it
+  /// belongs to the newest load, so an older, slower reply can never overwrite
+  /// a newer one. HTTP cancellation is not used as the guarantee: the request
+  /// is allowed to finish and is then discarded by generation.
+  int _generation = 0;
 
   @override
   void initState() {
@@ -312,29 +320,69 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
     if (state == AppLifecycleState.resumed) _load();
   }
 
+  /// Reads the booking, then its payment attempts and reviews.
+  ///
+  /// The booking is the authority: if it cannot be read, the previous snapshot
+  /// is dropped so cancel, pay, and complete never act on a state the server
+  /// refused to confirm. Auxiliary sections fail independently and keep their
+  /// last value behind an explicit "not refreshed" flag instead of pretending
+  /// an empty list.
   Future<void> _load() async {
+    final generation = ++_generation;
     if (!mounted) return;
     setState(() => _error = null);
     try {
       final booking = await widget.bookings.booking(widget.bookingId);
-      if (!mounted) return;
+      if (!_isCurrent(generation)) return;
       setState(() => _booking = booking);
-      try {
-        final attempts = await widget.payments.attempts(widget.bookingId);
-        if (mounted) setState(() => _attempts = attempts);
-      } on Object {
-        // Attempts are auxiliary; the booking still renders without them.
-      }
-      try {
-        final reviews = await widget.reviews.forBooking(widget.bookingId);
-        if (mounted) setState(() => _reviews = reviews);
-      } on Object {
-        // Reviews are auxiliary; the booking still renders without them.
+    } catch (error) {
+      if (!_isCurrent(generation)) return;
+      setState(() {
+        _booking = null;
+        _attempts = const [];
+        _attemptsError = null;
+        _reviews = const [];
+        _reviewsError = null;
+        _error = error;
+      });
+      return;
+    }
+    await Future.wait([_loadAttempts(generation), _loadReviews(generation)]);
+  }
+
+  Future<void> _loadAttempts(int generation) async {
+    try {
+      final attempts = await widget.payments.attempts(widget.bookingId);
+      if (!_isCurrent(generation)) return;
+      if (mounted) {
+        setState(() {
+          _attempts = attempts;
+          _attemptsError = null;
+        });
       }
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (!_isCurrent(generation)) return;
+      if (mounted) setState(() => _attemptsError = error);
     }
   }
+
+  Future<void> _loadReviews(int generation) async {
+    try {
+      final reviews = await widget.reviews.forBooking(widget.bookingId);
+      if (!_isCurrent(generation)) return;
+      if (mounted) {
+        setState(() {
+          _reviews = reviews;
+          _reviewsError = null;
+        });
+      }
+    } catch (error) {
+      if (!_isCurrent(generation)) return;
+      if (mounted) setState(() => _reviewsError = error);
+    }
+  }
+
+  bool _isCurrent(int generation) => mounted && generation == _generation;
 
   Future<void> _complete() async {
     final booking = _booking;
@@ -560,23 +608,38 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    // A refused booking read leaves no actionable state: the old snapshot is
+    // gone, so cancel, pay, and complete are unreachable rather than offered
+    // against a state the server would not confirm.
+    if (_error != null && _booking == null) {
+      final failure = _error is ApiFailure ? _error! as ApiFailure : null;
+      return Scaffold(
+        appBar: AppBar(title: Text(context.lamsa.bookingDetail)),
+        body: SafeArea(
+          child: LamsaStatusView(
+            status: failure?.kind == ApiFailureKind.forbidden
+                ? LamsaStatus.forbidden
+                : LamsaStatus.error,
+            title: context.lamsa.bookingDetail,
+            message: switch (failure?.kind) {
+              ApiFailureKind.notFound => context.lamsa.bookingNotFound,
+              ApiFailureKind.unauthorized => context.lamsa.sessionExpired,
+              ApiFailureKind.forbidden => context.lamsa.forbiddenTitle,
+              _ => failure?.message ?? context.lamsa.tryAgain,
+            },
+            onRetry: _load,
+          ),
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(title: Text(context.lamsa.bookingDetail)),
       body: SafeArea(
-        child: _booking == null && _error == null
+        child: _booking == null
             ? LamsaStatusView(
                 status: LamsaStatus.loading,
                 title: context.lamsa.bookingDetail,
                 message: context.lamsa.loadingBooking,
-              )
-            : _booking == null
-            ? LamsaStatusView(
-                status: LamsaStatus.error,
-                title: context.lamsa.bookingDetail,
-                message: _error is ApiFailure
-                    ? (_error! as ApiFailure).message
-                    : context.lamsa.tryAgain,
-                onRetry: _load,
               )
             : RefreshIndicator(
                 onRefresh: _load,
@@ -647,6 +710,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                     _PaymentSection(
                       booking: _booking!,
                       attempts: _attempts,
+                      attemptsError: _attemptsError,
                       paying: _paying,
                       onPay: _startPayment,
                       onRefresh: _load,
@@ -667,6 +731,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen>
                       const SizedBox(height: 12),
                       _ReviewSection(
                         reviews: _reviews,
+                        reviewsError: _reviewsError,
                         currentUserId: widget.currentUserId,
                         rating: _rating,
                         submitting: _submittingReview,
@@ -772,6 +837,7 @@ class _PaymentSection extends StatelessWidget {
   const _PaymentSection({
     required this.booking,
     required this.attempts,
+    required this.attemptsError,
     required this.paying,
     required this.onPay,
     required this.onRefresh,
@@ -779,6 +845,10 @@ class _PaymentSection extends StatelessWidget {
 
   final Booking booking;
   final List<BookingPayment> attempts;
+
+  /// Set when the attempts could not be read. A failure is never rendered as
+  /// "no attempts": the list is either marked stale or shown as unavailable.
+  final Object? attemptsError;
   final bool paying;
   final VoidCallback onPay;
   final VoidCallback onRefresh;
@@ -806,6 +876,18 @@ class _PaymentSection extends StatelessWidget {
         Text(
           context.lamsa.paymentNotEligible,
           style: Theme.of(context).textTheme.bodySmall,
+        ),
+      if (attemptsError != null && attempts.isEmpty)
+        _StaleDataNotice(
+          key: const ValueKey('payment-attempts-unavailable'),
+          message: context.lamsa.paymentAttemptsUnavailable,
+          onRetry: onRefresh,
+        )
+      else if (attemptsError != null)
+        _StaleDataNotice(
+          key: const ValueKey('payment-attempts-stale'),
+          message: context.lamsa.paymentAttemptsNotUpdated,
+          onRetry: onRefresh,
         ),
       for (final attempt in attempts)
         ListTile(
@@ -877,11 +959,40 @@ class _DemoPaymentSheet extends StatelessWidget {
   );
 }
 
+/// Inline notice for auxiliary data that could not be read. It states plainly
+/// that the shown data is not current, instead of leaving an empty section that
+/// would read as a confirmed "nothing here".
+class _StaleDataNotice extends StatelessWidget {
+  const _StaleDataNotice({
+    required this.message,
+    required this.onRetry,
+    super.key,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(message, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        TextButton(onPressed: onRetry, child: Text(context.lamsa.retry)),
+      ],
+    ),
+  );
+}
+
 /// Review section of a completed booking. Shows both parties' reviews when
 /// present and offers the form only while the current user has not reviewed.
 class _ReviewSection extends StatelessWidget {
   const _ReviewSection({
     required this.reviews,
+    required this.reviewsError,
     required this.currentUserId,
     required this.rating,
     required this.submitting,
@@ -892,6 +1003,10 @@ class _ReviewSection extends StatelessWidget {
   });
 
   final List<BookingReview> reviews;
+
+  /// A failed read is shown, never collapsed into "not reviewed yet": offering
+  /// the form there could invite a duplicate submission.
+  final Object? reviewsError;
   final String? currentUserId;
   final int rating;
   final bool submitting;
@@ -922,6 +1037,12 @@ class _ReviewSection extends StatelessWidget {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         const SizedBox(height: 4),
+        if (reviewsError != null)
+          _StaleDataNotice(
+            key: const ValueKey('reviews-unavailable'),
+            message: context.lamsa.reviewsUnavailable,
+            onRetry: onRefresh,
+          ),
         if (mine != null)
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -944,7 +1065,7 @@ class _ReviewSection extends StatelessWidget {
                 ? Text(other.comment!)
                 : null,
           ),
-        if (mine == null) ...[
+        if (mine == null && reviewsError == null) ...[
           const SizedBox(height: 8),
           Text(context.lamsa.ratingStars),
           Row(

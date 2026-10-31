@@ -107,6 +107,15 @@ String formatBookingTime(String instant, String timeZone) {
   return '${_twoDigits(local.hour)}:${_twoDigits(local.minute)}';
 }
 
+/// Display zone for timestamps that carry no snapshot timezone of their own,
+/// such as payout recording and transfer instants. This is the documented
+/// market policy (Cairo), never the device timezone.
+const marketDisplayTimeZone = 'Africa/Cairo';
+
+/// Readable Arabic date and time of a server instant in [marketDisplayTimeZone].
+String formatMarketDateTime(String instant) =>
+    formatBookingDateTime(instant, marketDisplayTimeZone);
+
 /// Cairo local date (`YYYY-MM-DD`) of [instant].
 ///
 /// Only for current slot data whose contract fixes `Africa/Cairo`.

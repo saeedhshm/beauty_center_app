@@ -170,10 +170,94 @@ void main() {
 
     expect(find.text('غير مسموح'), findsOneWidget);
   });
+
+  testWidgets('late review submits from completed detail', (tester) async {
+    final gateway = _BookingGateway(status: 'completed');
+    final reviews = _ReviewsGateway();
+    await tester.pumpWidget(
+      _app(
+        ExpertBookingDetailScreen(
+          bookings: gateway,
+          reviews: reviews,
+          currentUserId: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+          bookingId: _bookingId(8),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('expert-review-star-4')));
+    await tester.pump();
+    await tester.enterText(
+      find.byKey(const ValueKey('expert-review-comment')),
+      'تجربة جيدة',
+    );
+    // The review block sits below the fold on the detail list.
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('expert-review-submit')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('expert-review-submit')));
+    await tester.pumpAndSettle();
+
+    expect(reviews.submits, ['${_bookingId(8)}:4:تجربة جيدة']);
+    expect(find.textContaining('تقييمك: '), findsOneWidget);
+  });
+
+  testWidgets('duplicate review shows already-reviewed', (tester) async {
+    final gateway = _BookingGateway(status: 'completed');
+    final reviews = _ReviewsGateway()
+      ..failSubmitWith = const ApiFailure(
+        kind: ApiFailureKind.conflict,
+        code: 'DUPLICATE_REVIEW',
+        message: 'duplicate',
+      );
+    await tester.pumpWidget(
+      _app(
+        ExpertBookingDetailScreen(
+          bookings: gateway,
+          reviews: reviews,
+          currentUserId: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+          bookingId: _bookingId(9),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('expert-review-submit')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('expert-review-submit')));
+    await tester.pumpAndSettle();
+
+    expect(reviews.submits, ['${_bookingId(9)}:5:']);
+    expect(find.text('سبق أن قيّمتِ هذا الحجز.'), findsOneWidget);
+  });
+
+  testWidgets('no review form before completed', (tester) async {
+    final gateway = _BookingGateway(status: 'accepted');
+    final reviews = _ReviewsGateway();
+    await tester.pumpWidget(
+      _app(
+        ExpertBookingDetailScreen(
+          bookings: gateway,
+          reviews: reviews,
+          currentUserId: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+          bookingId: _bookingId(10),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('مقبول'), findsWidgets);
+    expect(find.byKey(const ValueKey('expert-review-submit')), findsNothing);
+    expect(find.text('قيّمي التجربة'), findsNothing);
+    expect(reviews.submits, isEmpty);
+  });
 }
 
 String _bookingId(int n) => '00000000-0000-4000-8000-00000000000$n';
-
 Widget _app(Widget child) => MaterialApp(
   locale: const Locale('ar'),
   supportedLocales: LamsaLocalizations.supportedLocales,
@@ -285,4 +369,35 @@ class _BookingGateway implements BookingGateway {
 
   @override
   Future<Booking> complete(String id) => throw UnimplementedError();
+}
+
+class _ReviewsGateway implements ReviewGateway {
+  final List<BookingReview> existing = [];
+  final List<String> submits = [];
+  Object? failSubmitWith;
+
+  @override
+  Future<BookingReview> submit(
+    String bookingId, {
+    required int rating,
+    String? comment,
+  }) async {
+    submits.add('$bookingId:$rating:${comment ?? ''}');
+    if (failSubmitWith != null) throw failSubmitWith!;
+    final review = BookingReview(
+      id: 'r-${submits.length}',
+      bookingId: bookingId,
+      reviewerId: 'bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+      revieweeId: 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+      rating: rating,
+      comment: comment,
+      createdAt: '2026-10-21T08:00:00.000Z',
+    );
+    existing.add(review);
+    return review;
+  }
+
+  @override
+  Future<List<BookingReview>> forBooking(String bookingId) async =>
+      List.of(existing);
 }

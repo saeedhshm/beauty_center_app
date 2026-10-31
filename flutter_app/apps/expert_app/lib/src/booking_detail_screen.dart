@@ -4,6 +4,8 @@ import 'package:lamsa_design_system/lamsa_design_system.dart';
 import 'package:lamsa_localization/lamsa_localization.dart';
 import 'package:lamsa_networking/lamsa_networking.dart';
 
+import 'review_section.dart';
+
 /// Read-only booking detail for the expert app.
 ///
 /// Fetches `GET /bookings/:id` on open and displays whatever status the
@@ -12,15 +14,23 @@ import 'package:lamsa_networking/lamsa_networking.dart';
 /// Never mutates anything and never trusts notification payload content:
 /// only the freshly fetched DTO is shown, including the address exactly as
 /// the server discloses it to the owning expert under current policy.
+///
+/// When the fetched booking is `completed` and a [reviews] gateway is
+/// provided, the expert's own review (or the review form) is shown below the
+/// details; the form never appears for other states.
 class ExpertBookingDetailScreen extends StatefulWidget {
   const ExpertBookingDetailScreen({
     required this.bookings,
     required this.bookingId,
+    this.reviews,
+    this.currentUserId,
     super.key,
   });
 
   final BookingGateway bookings;
   final String bookingId;
+  final ReviewGateway? reviews;
+  final String? currentUserId;
 
   @override
   State<ExpertBookingDetailScreen> createState() =>
@@ -116,6 +126,15 @@ class _ExpertBookingDetailScreenState extends State<ExpertBookingDetailScreen> {
                           ),
                         ),
                       ),
+                    if (_booking!.status == BookingStates.completed &&
+                        widget.reviews != null) ...[
+                      const SizedBox(height: 12),
+                      BookingReviewSection(
+                        reviews: widget.reviews!,
+                        bookingId: _booking!.id,
+                        currentUserId: widget.currentUserId,
+                      ),
+                    ],
                   ],
                 ),
               ),

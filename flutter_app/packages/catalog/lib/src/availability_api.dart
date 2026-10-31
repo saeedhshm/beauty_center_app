@@ -109,27 +109,80 @@ bool isWithinDaytime(String startTime, String endTime) {
   return _minutesOf(startTime) >= 9 * 60 && _minutesOf(endTime) <= 22 * 60;
 }
 
-/// True when every interval is well-ordered and no two overlap.
-bool areIntervalsValid(List<WeeklySlot> intervals) {
-  if (intervals.length > 3) return false;
+/// Why one day's intervals cannot be saved. These are exactly the rules the
+/// server enforces (`weeklyScheduleSchema`): at most three intervals a day,
+/// ordered, inside daytime, and non-overlapping. Nothing is added here.
+enum ScheduleProblem {
+  tooManyIntervals,
+  malformedTime,
+  endNotAfterStart,
+  outsideDaytime,
+  overlapping,
+}
+
+/// A validation outcome rather than a bare flag: it names the first problem
+/// and the day it belongs to, so a screen can explain it and block saving.
+class ScheduleValidation {
+  const ScheduleValidation.valid() : problem = null, day = null;
+  const ScheduleValidation.invalid(this.problem, this.day);
+
+  final ScheduleProblem? problem;
+  final int? day;
+
+  bool get isValid => problem == null;
+}
+
+/// Validates the intervals of a single day against the contract rules.
+ScheduleValidation validateDayIntervals(List<WeeklySlot> intervals) {
+  const day = 0;
+  if (intervals.length > 3) {
+    return const ScheduleValidation.invalid(
+      ScheduleProblem.tooManyIntervals,
+      day,
+    );
+  }
+  if (intervals.any(
+    (slot) => !_isClockTime(slot.startTime) || !_isClockTime(slot.endTime),
+  )) {
+    return const ScheduleValidation.invalid(ScheduleProblem.malformedTime, day);
+  }
   final ordered = List<WeeklySlot>.from(intervals)
     ..sort((a, b) => a.startTime.compareTo(b.startTime));
-  for (var i = 0; i < ordered.length; i++) {
-    final current = ordered[i];
-    if (!_isClockTime(current.startTime) || !_isClockTime(current.endTime)) {
-      return false;
-    }
-    if (_minutesOf(current.startTime) >= _minutesOf(current.endTime)) {
-      return false;
-    }
-    if (!isWithinDaytime(current.startTime, current.endTime)) return false;
-    if (i > 0 &&
-        _minutesOf(ordered[i - 1].endTime) > _minutesOf(current.startTime)) {
-      return false;
+  if (ordered.any(
+    (slot) => _minutesOf(slot.startTime) >= _minutesOf(slot.endTime),
+  )) {
+    return const ScheduleValidation.invalid(
+      ScheduleProblem.endNotAfterStart,
+      day,
+    );
+  }
+  if (ordered.any((slot) => !isWithinDaytime(slot.startTime, slot.endTime))) {
+    return const ScheduleValidation.invalid(
+      ScheduleProblem.outsideDaytime,
+      day,
+    );
+  }
+  for (var i = 1; i < ordered.length; i++) {
+    if (_minutesOf(ordered[i - 1].endTime) > _minutesOf(ordered[i].startTime)) {
+      return const ScheduleValidation.invalid(ScheduleProblem.overlapping, day);
     }
   }
-  return true;
+  return const ScheduleValidation.valid();
 }
+
+/// Validates a whole week and returns the first problem it finds.
+ScheduleValidation validateWeeklySchedule(Map<int, List<WeeklySlot>> week) {
+  for (final entry in week.entries) {
+    final result = validateDayIntervals(entry.value);
+    if (result.isValid) continue;
+    return ScheduleValidation.invalid(result.problem!, entry.key);
+  }
+  return const ScheduleValidation.valid();
+}
+
+/// True when every interval is well-ordered and no two overlap.
+bool areIntervalsValid(List<WeeklySlot> intervals) =>
+    validateDayIntervals(intervals).isValid;
 
 abstract interface class AvailabilityGateway {
   Future<List<WeeklySlot>> weekly();

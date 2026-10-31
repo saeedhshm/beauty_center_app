@@ -346,7 +346,7 @@ packages:
     source: path
     version: "0.1.0"
   lamsa_networking:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../networking"
       relative: true

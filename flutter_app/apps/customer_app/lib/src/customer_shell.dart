@@ -19,8 +19,14 @@ class CustomerShell extends StatefulWidget {
     required this.paymentApi,
     required this.reviewApi,
     required this.notificationApi,
+    this.onBookingOpenerReady,
     super.key,
   });
+
+  /// Receives this shell's booking opener so a push can navigate from
+  /// anywhere in the app while the workspace is alive.
+  final void Function(Future<void> Function(String bookingId))?
+  onBookingOpenerReady;
 
   final SessionManager manager;
   final AccountGateway accountApi;
@@ -38,6 +44,30 @@ class CustomerShell extends StatefulWidget {
 
 class _CustomerShellState extends State<CustomerShell> {
   int _destination = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.onBookingOpenerReady?.call(_openBooking);
+  }
+
+  /// Opens the referenced booking through the detail screen, which fetches it
+  /// fresh from the API: a booking that is not this customer's comes back as a
+  /// server 404 and shows nothing.
+  Future<void> _openBooking(String bookingId) async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BookingDetailScreen(
+          bookings: widget.bookingApi,
+          payments: widget.paymentApi,
+          reviews: widget.reviewApi,
+          currentUserId: widget.manager.user?.id,
+          bookingId: bookingId,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -85,10 +85,43 @@ final pushRegistrarProvider = Provider<PushRegistrar>((ref) {
 /// [PushSessionSync], which subscribes to the manager itself (a plain
 /// provider value never changes for a ChangeNotifier). Permission is
 /// requested only after a real login.
+/// Holds the workspace booking opener so a push can navigate from anywhere
+/// once the workspace is mounted. A plain holder keeps this free of Riverpod
+/// legacy state providers.
+class BookingOpenerHolder {
+  Future<void> Function(String bookingId)? open;
+}
+
+final bookingOpenerHolderProvider = Provider<BookingOpenerHolder>(
+  (ref) => BookingOpenerHolder(),
+);
+
+/// Routes a received push to the booking screen once the session allows it.
+/// The booking is always fetched fresh from the API by the detail screen, so a
+/// resource that is not this user's stays a server 404.
+final pushCoordinatorProvider = Provider<PushCoordinator>((ref) {
+  final coordinator = PushCoordinator(
+    provider: ref.watch(pushRegistrarProvider).provider,
+    session: ref.watch(sessionManagerProvider),
+    onOpenBooking: (bookingId) async {
+      // No workspace yet (still restoring or signed out): nothing opens.
+      final open = ref.read(bookingOpenerHolderProvider).open;
+      if (open == null) return;
+      await open(bookingId);
+    },
+  );
+  unawaited(coordinator.attach());
+  ref.onDispose(() => coordinator.dispose());
+  return coordinator;
+});
+
 final pushSyncProvider = Provider<void>((ref) {
   final sync = PushSessionSync(
     manager: ref.watch(sessionManagerProvider),
     registrar: ref.read(pushRegistrarProvider),
+    // Connectivity is an existing signal; a failed registration retries when
+    // the network comes back, and again when the app is resumed.
+    connectivityChanges: ref.read(networkMonitorProvider).changes,
   );
   sync.attach();
   ref.onDispose(() async {
@@ -149,6 +182,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           paymentApi: ref.read(paymentApiProvider),
           reviewApi: ref.read(reviewApiProvider),
           notificationApi: ref.read(notificationApiProvider),
+          onBookingOpenerReady: (open) =>
+              ref.read(bookingOpenerHolderProvider).open = open,
         ),
       ),
     ],
